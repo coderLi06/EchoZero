@@ -97,6 +97,8 @@ class CombatState:
     walls: set[GridPos] = field(default_factory=set)
     enemy_intents: tuple[EnemyIntent, ...] = ()
     turn: int = 1
+    player_plugins: tuple[str, ...] = ()
+    player_plugin_effects: tuple[str, ...] = ()
 
     def clone(self) -> "CombatState":
         return CombatState(
@@ -106,6 +108,8 @@ class CombatState:
             set(self.walls),
             tuple(self.enemy_intents),
             self.turn,
+            tuple(self.player_plugins),
+            tuple(self.player_plugin_effects),
         )
 
     def in_bounds(self, pos: GridPos) -> bool:

@@ -18,7 +18,10 @@ def simulate_turn(state: CombatState, commands: Iterable[Command]) -> Simulation
     """在状态副本上执行一回合，从不修改输入状态。"""
     working = state.clone()
     events: list[LogicEvent] = []
-    for tick, command in enumerate(_normalise_slots(commands), start=1):
+    normalised = _normalise_slots(commands)
+    normalised, plugin_events = _apply_protocol_plugins(working, normalised)
+    events.extend(plugin_events)
+    for tick, command in enumerate(normalised, start=1):
         _apply_command(working, command, tick, events)
     _apply_enemy_intents(working, events)
     working.turn += 1
@@ -46,6 +49,8 @@ def state_fingerprint(state: CombatState) -> str:
             [i.actor_id, i.target_pos.x, i.target_pos.y, i.damage, i.order]
             for i in sorted(state.enemy_intents, key=lambda item: (item.order, item.actor_id))
         ],
+        "plugins": list(state.player_plugins),
+        "plugin_effects": list(state.player_plugin_effects),
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -78,8 +83,10 @@ def _apply_command(state: CombatState, command: Command, tick: int, events: list
     elif command.command_type is CommandType.PULL:
         _pull(state, actor, command.target_entity_id, tick, events)
     elif command.command_type is CommandType.SHIELD:
-        actor.shield += 1
-        events.append(LogicEvent("shielded", tick, actor.entity_id, amount=1))
+        amount = 2 if "shield_plus_one" in state.player_plugin_effects else 1
+        actor.shield += amount
+        detail = "emergency_barrier" if amount > 1 else ""
+        events.append(LogicEvent("shielded", tick, actor.entity_id, amount=amount, detail=detail))
 
 
 def _move(state: CombatState, actor: EntityState, direction: Direction | None, tick: int, events: list[LogicEvent]) -> None:
@@ -101,7 +108,9 @@ def _push(state: CombatState, actor: EntityState, direction: Direction | None, t
     if target is None:
         events.append(LogicEvent("push_missed", tick, actor.entity_id, detail=direction.name.lower()))
         return
-    _damage(state, target, PUSH_DAMAGE, tick, actor.entity_id, events, "push")
+    damage = PUSH_DAMAGE + (1 if "push_damage_plus_one" in state.player_plugin_effects else 0)
+    detail = "kinetic_amplifier" if damage > PUSH_DAMAGE else "push"
+    _damage(state, target, damage, tick, actor.entity_id, events, detail)
     if target.entity_id not in state.entities:
         return
     destination = target.pos.moved(direction)
@@ -122,7 +131,8 @@ def _pull(state: CombatState, actor: EntityState, target_entity_id: str | None, 
     dx = actor.pos.x - target.pos.x
     dy = actor.pos.y - target.pos.y
     distance = actor.pos.manhattan_distance(target.pos)
-    if distance > PULL_RANGE or (dx != 0 and dy != 0):
+    pull_range = PULL_RANGE + (1 if "pull_range_plus_one" in state.player_plugin_effects else 0)
+    if distance > pull_range or (dx != 0 and dy != 0):
         events.append(LogicEvent("pull_missed", tick, actor.entity_id, target.entity_id, detail="out_of_line"))
         return
     direction = _direction_from_delta(dx, dy)
@@ -177,3 +187,31 @@ def _direction_from_delta(dx: int, dy: int) -> Direction:
     if dy < 0:
         return Direction.UP
     raise ValueError("Cannot derive a direction from overlapping positions")
+
+
+def _apply_protocol_plugins(
+    state: CombatState, commands: tuple[Command, ...]
+) -> tuple[tuple[Command, ...], tuple[LogicEvent, ...]]:
+    """Apply the small, explicit Stage03 protocol registry before simulation.
+
+    The transformation runs inside the shared simulator, so preview and execution
+    cannot drift. New effect types still require an implementation and config
+    validation instead of arbitrary expressions in JSON.
+    """
+    transformed = list(commands)
+    events: list[LogicEvent] = []
+    if (
+        "repeat_first_on_empty_third" in state.player_plugin_effects
+        and transformed[2].command_type is CommandType.WAIT
+        and transformed[0].command_type is not CommandType.WAIT
+    ):
+        transformed[2] = transformed[0].in_slot(3)
+        events.append(
+            LogicEvent(
+                "plugin_triggered",
+                3,
+                transformed[0].actor_id,
+                detail="echo_protocol",
+            )
+        )
+    return tuple(transformed), tuple(events)

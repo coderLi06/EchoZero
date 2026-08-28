@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import argparse
 
-from src.stage02_app import Stage02App
+from src.stage03_app import Stage03App
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="EchoZero Stage02 测试 Encounter")
-    parser.add_argument("--smoke-test", action="store_true", help="绘制一帧后退出")
+    parser = argparse.ArgumentParser(description="EchoZero Level 1 Vertical Slice")
+    parser.add_argument("--smoke-test", action="store_true", help="自动通关正式流程并绘制后退出")
     args = parser.parse_args()
-    return Stage02App(smoke_test=args.smoke_test).run()
+    return Stage03App(smoke_test=args.smoke_test).run()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # ARCHITECTURE——技术架构
 
-> 状态：Stage02 已落地；保持纯领域模拟与 pygame 表现分离。
+> 状态：Stage03 Level 1 Vertical Slice 已落地；保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
@@ -127,3 +127,15 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - `stage02_app.py`：将鼠标/键盘输入翻译为 Command，展示状态并按 LogicEvent 播放格子脉冲/事件高亮，不修改战斗事实。
 
 依赖保持 `pygame → Stage02App → Encounter/Command → Simulator → CombatState/LogicEvent`；领域层没有导入 pygame。
+
+## 15. Stage03 实际落地
+
+- `domain/content.py`：关卡、遭遇、敌人生成点和协议插件的不可变定义；
+- `infrastructure/config.py`：从 `data/` 读取 JSON，校验必填字段、类型、范围、重复 ID、坏引用和已注册效果类型；
+- `domain/level.py`：纯逻辑 `LevelRun`，负责三场遭遇顺序、Reward、玩家生命/Build 继承、敌人隔离、Victory/Defeat/Restart 与重复结算保护；
+- `domain/simulation.py`：协议 `effect_type` 在唯一模拟器内部生效；回声改写第三拍，动能、牵引和护盾插件修改对应规则，预演与执行仍共用同一路径；
+- `stage03_app.py`：正式菜单、战斗、奖励和结果场景的轻量控制器，只把键鼠输入翻译为命令；
+- `presentation/stage03_renderer.py` 与 `audio.py`：消费领域状态和 `LogicEvent`，绘制 HUD、残影、锁定线、单位形状、反馈脉冲并播放可降级的合成提示音；
+- `stage03_smoke.py`：通过正式 App/LevelRun API 走通菜单到 Level Clear，再验证干净重启。
+
+依赖保持 `pygame → Stage03App → LevelRun → Encounter → Simulator`。配置层构造类型化定义；表现层不会修改伤害、位置、胜负或协议规则。

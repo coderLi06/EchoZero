@@ -1,0 +1,46 @@
+{
+  "id": "calibration_chamber",
+  "name": "校准舱",
+  "seed": 10303,
+  "width": 8,
+  "height": 6,
+  "player_max_hp": 6,
+  "encounters": [
+    {
+      "id": "sequence_calibration",
+      "title": "01 / 序列校准",
+      "objective": "在突进体执行锁定攻击前将其移除。",
+      "hint": "先牵引，再推击；交换同样三条命令即可改变结局。",
+      "player_spawn": [1, 3],
+      "walls": [[4, 2], [4, 4]],
+      "enemies": [
+        {"id": "charger_alpha", "name": "突进体 α", "kind": "charger", "pos": [4, 3], "hp": 1}
+      ],
+      "reward_choices": ["echo_protocol", "kinetic_amplifier", "emergency_barrier"]
+    },
+    {
+      "id": "protocol_trial",
+      "title": "02 / 协议验证",
+      "objective": "让刚选择的协议改变你的三拍方案。",
+      "hint": "回声方案：推击 → 移动 → 待机；第 3 拍会重放第 1 拍。",
+      "player_spawn": [1, 3],
+      "walls": [[5, 2], [5, 4]],
+      "enemies": [
+        {"id": "guard_beta", "name": "校准卫兵 β", "kind": "guard", "pos": [2, 3], "hp": 2}
+      ]
+    },
+    {
+      "id": "dual_lock_climax",
+      "title": "03 / 双重锁定",
+      "objective": "处理近距突进与远距锁定，完成校准舱终检。",
+      "hint": "先取消最迫近的意图，再利用墙面和空拍协议处理射手。",
+      "player_spawn": [1, 3],
+      "walls": [[7, 1], [4, 1], [4, 2], [4, 4]],
+      "enemies": [
+        {"id": "charger_prime", "name": "突进体 Ω", "kind": "charger", "pos": [4, 3], "hp": 1},
+        {"id": "sniper_prime", "name": "校验射手 Ω", "kind": "sniper", "pos": [6, 1], "hp": 2}
+      ],
+      "is_climax": true
+    }
+  ]
+}
