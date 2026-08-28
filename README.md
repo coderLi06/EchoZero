@@ -10,7 +10,7 @@ EchoZero 是一个使用 Python 开发的 Roguelike 策略游戏 Demo，面向�
 
 - Stage 00：方案与交互原型已通过；
 - Stage 01：可测试的三槽确定性模拟器与 8×6 pygame 灰盒已完成；
-- Stage 02：尚未开始，等待阶段门确认。
+- Stage 02：测试 Encounter 核心战斗闭环已完成，等待用户确认阶段门。
 
 ## 技术栈
 
@@ -27,13 +27,13 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe main.py
 ```
 
-### 灰盒操作
+### Stage02 测试 Encounter 操作
 
-- 鼠标：先点一个命令槽，再点另一个槽，两者交换；
-- 键盘：`1` / `2` / `3` 选槽，方向键换序；
-- `Enter` 或空格执行，`R` 重置，`Esc` 退出。
+- 鼠标：点击命令槽后，点相邻空格设置移动、点敌人设置推击/牵引、点玩家设置护盾；点击两个槽交换顺序；右键槽位设为待机；
+- 键盘：`1` / `2` / `3` 选槽，`WASD` 设置移动，`Q` 设置护盾；
+- `Enter` 或空格执行，`R` 重新开始，`F3` 切换调试信息，`Esc` 退出。
 
-初始顺序会让玩家踏入敌人锁定格并受伤。将命令调整为“牵引 → 推击 → 移动”，会在敌人执行意图前击杀它。
+初始顺序无法解决突进体。将命令调整为“牵引 → 推击 → 移动”，会在敌人执行意图前击杀它；之后继续对抗会 BFS 移动并公开锁定格的校验射手，直至胜利或失败。
 
 ### 自动验证
 
@@ -43,7 +43,7 @@ $env:SDL_VIDEODRIVER = "dummy"
 .\.venv\Scripts\python.exe main.py --smoke-test
 ```
 
-`src/domain` 不导入 pygame。`preview_turn` 和 `execute_turn` 都调用同一个 `simulate_turn`，执行后界面会对比两者的终态指纹。
+`--smoke-test` 会通过实际 App/Encounter 接口自动走到 Victory、执行 Restart，再绘制界面后退出。`src/domain` 不导入 pygame；`preview_turn` 和 `execute_turn` 都调用同一个 `simulate_turn`。
 
 ## 项目结构
 

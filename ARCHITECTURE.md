@@ -1,6 +1,6 @@
 # ARCHITECTURE——技术架构
 
-> 状态：第 00 阶段建议稿；核心方案确认后进入实现。
+> 状态：Stage02 已落地；保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
@@ -117,3 +117,13 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 ## 13. 技术债警戒线
 
 禁止出现 `GameManager/CombatManager/SkillManager/AudioManager` 全局互调、一个巨型 `game.py`、UI 直接扣血、技能名分支链、隐式全局 RNG、两套预演/执行规则、配置静默忽略错误。
+
+## 14. Stage02 实际落地
+
+- `domain/encounter.py`：一次 Encounter 的命令槽、回合确认、统一胜负判定与无污染重开；
+- `domain/ai.py`：敌人从当前格到可攻击格的 BFS，按稳定 ID 顺序移动并生成公开意图；搜索复杂度为 `O(width × height)`；
+- `domain/simulation.py`：仍是 preview/execute 的唯一规则来源，并新增护盾吸收事件；
+- `stage02_scenario.py`：仅保存可丢弃的 Stage02 测试战场定义，不是正式 Level 1；
+- `stage02_app.py`：将鼠标/键盘输入翻译为 Command，展示状态并按 LogicEvent 播放格子脉冲/事件高亮，不修改战斗事实。
+
+依赖保持 `pygame → Stage02App → Encounter/Command → Simulator → CombatState/LogicEvent`；领域层没有导入 pygame。

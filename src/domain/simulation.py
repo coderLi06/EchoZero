@@ -39,7 +39,7 @@ def state_fingerprint(state: CombatState) -> str:
         "turn": state.turn,
         "walls": [[pos.x, pos.y] for pos in sorted(state.walls)],
         "entities": [
-            {"id": e.entity_id, "faction": e.faction.value, "pos": [e.pos.x, e.pos.y], "hp": e.hp, "max_hp": e.max_hp}
+            {"id": e.entity_id, "faction": e.faction.value, "pos": [e.pos.x, e.pos.y], "hp": e.hp, "max_hp": e.max_hp, "shield": e.shield, "kind": e.enemy_kind}
             for e in sorted(state.entities.values(), key=lambda item: item.entity_id)
         ],
         "intents": [
@@ -77,6 +77,9 @@ def _apply_command(state: CombatState, command: Command, tick: int, events: list
         _push(state, actor, command.direction, tick, events)
     elif command.command_type is CommandType.PULL:
         _pull(state, actor, command.target_entity_id, tick, events)
+    elif command.command_type is CommandType.SHIELD:
+        actor.shield += 1
+        events.append(LogicEvent("shielded", tick, actor.entity_id, amount=1))
 
 
 def _move(state: CombatState, actor: EntityState, direction: Direction | None, tick: int, events: list[LogicEvent]) -> None:
@@ -146,6 +149,13 @@ def _apply_enemy_intents(state: CombatState, events: list[LogicEvent]) -> None:
 
 
 def _damage(state: CombatState, target: EntityState, amount: int, tick: int, actor_id: str, events: list[LogicEvent], detail: str) -> None:
+    absorbed = min(target.shield, amount)
+    if absorbed:
+        target.shield -= absorbed
+        amount -= absorbed
+        events.append(LogicEvent("shield_absorbed", tick, actor_id, target.entity_id, to_pos=target.pos, amount=absorbed, detail=detail))
+    if amount <= 0:
+        return
     target.hp -= amount
     events.append(LogicEvent("damaged", tick, actor_id, target.entity_id, to_pos=target.pos, amount=amount, detail=detail))
     if target.hp <= 0:
@@ -167,4 +177,3 @@ def _direction_from_delta(dx: int, dy: int) -> Direction:
     if dy < 0:
         return Direction.UP
     raise ValueError("Cannot derive a direction from overlapping positions")
-

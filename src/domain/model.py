@@ -40,6 +40,7 @@ class CommandType(str, Enum):
     MOVE = "move"
     PUSH = "push"
     PULL = "pull"
+    SHIELD = "shield"
 
 
 @dataclass
@@ -50,10 +51,19 @@ class EntityState:
     hp: int
     max_hp: int
     display_name: str
+    enemy_kind: str = ""
+    shield: int = 0
 
     def clone(self) -> "EntityState":
         return EntityState(
-            self.entity_id, self.faction, self.pos, self.hp, self.max_hp, self.display_name
+            self.entity_id,
+            self.faction,
+            self.pos,
+            self.hp,
+            self.max_hp,
+            self.display_name,
+            self.enemy_kind,
+            self.shield,
         )
 
 
@@ -121,4 +131,3 @@ class LogicEvent:
 class SimulationResult:
     state: CombatState
     events: tuple[LogicEvent, ...]
-
