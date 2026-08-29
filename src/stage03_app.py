@@ -12,24 +12,47 @@ import pygame
 from src.domain import (
     Command,
     CommandType,
+    CombatState,
     Direction,
     Faction,
     GridPos,
     LevelPhase,
     LevelRun,
     LogicEvent,
+    PluginDefinition,
+    SimulationResult,
     state_fingerprint,
 )
 from src.infrastructure import ContentLoadError, load_demo_content
 from src.infrastructure.session_metrics import SessionMetrics
 from src.presentation.audio import CueAudio
-from src.presentation.effects import PresentationFrame, cue_for_event, presentation_frame
+from src.presentation.battle_view import (
+    BattleView,
+    command_display_label,
+    meaningful_rewrite,
+)
+from src.presentation.effects import (
+    CAUSALITY_MS,
+    EXECUTE_PREP_MS,
+    EXECUTE_RESULT_MS,
+    REDUCED_CAUSALITY_MS,
+    REDUCED_PREP_MS,
+    REDUCED_RESULT_MS,
+    REDUCED_REWARD_MS,
+    REWARD_ACQUIRE_MS,
+    PresentationFrame,
+    cue_for_event,
+    playback_state,
+    presentation_duration_ms,
+    presentation_frame,
+)
 from src.presentation.tutorial import ContextualTutorial
 from src.presentation.stage03_renderer import (
     CELL_SIZE,
     EXECUTE_RECT,
     GRID_ORIGIN,
     MENU_START_RECT,
+    PROTOCOL_RECT,
     RESTART_RECT,
     RESULT_RESTART_RECT,
     REWARD_RECTS,
@@ -61,6 +84,10 @@ class Stage03UiState:
     volume_percent: int = 65
     verification_ok: bool | None = None
     feedback: str = "选择命令槽，再点击战场目标。"
+    hovered_slot: int | None = None
+    protocol_hovered: bool = False
+    swap_pair: tuple[int, int] | None = None
+    swap_started_ms: int = 0
 
 
 class Stage03App:
@@ -94,6 +121,13 @@ class Stage03App:
         self._seed_source = rng or random.Random()
         self._has_started_run = False
         self._last_execute_click_ms = -1000
+        self._execution_view: BattleView | None = None
+        self._post_execute_scene = AppScene.BATTLE
+        self._post_execute_events: tuple[LogicEvent, ...] = ()
+        self._causality_rewrite = False
+        self._causality_baseline: CombatState | None = None
+        self._pending_reward_index: int | None = None
+        self._reward_started_ms = 0
         try:
             levels, plugins = load_demo_content(data_root)
             self.level_definitions = levels
@@ -108,8 +142,8 @@ class Stage03App:
     def run(self) -> int:
         pygame.init()
         try:
-            self.screen = pygame.display.set_mode(WINDOW_SIZE)
-            pygame.display.set_caption("EchoZero | 双关卡 Demo")
+            self.screen = pygame.display.set_mode(WINDOW_SIZE, pygame.RESIZABLE)
+            pygame.display.set_caption("EchoZero | Tactical Causality")
             self.renderer = Stage03Renderer(self.screen)
             self.audio.initialise()
             self.audio.play_music("menu")
@@ -130,6 +164,11 @@ class Stage03App:
                         self._handle_motion(event.pos)
                     elif event.type == pygame.WINDOWFOCUSLOST:
                         self._handle_focus_lost()
+                    elif event.type == pygame.VIDEORESIZE:
+                        size = (max(960, event.w), max(600, event.h))
+                        self.screen = pygame.display.set_mode(size, pygame.RESIZABLE)
+                        self.renderer.output = self.screen
+                self._update_presentation_state()
                 self._update_presentation_audio()
                 self.renderer.draw(self)
                 pygame.display.flip()
@@ -147,8 +186,84 @@ class Stage03App:
             pygame.quit()
 
     @property
-    def preview(self):
-        return self.level_run.encounter.preview()
+    def preview(self) -> SimulationResult:
+        return self.battle_view.preview
+
+    @property
+    def battle_view(self) -> BattleView:
+        if self._execution_view is not None:
+            return self._execution_view
+        run = self.level_run
+        return BattleView(
+            run.encounter.state,
+            tuple(run.encounter.commands),
+            run.encounter.preview(),
+            run.current_definition,
+            run.definition.display_name,
+            self.level_index + 1,
+            run.progress,
+            run.build_summary,
+            run.plugin_definitions,
+            run.run_seed,
+        )
+
+    @property
+    def visual_state(self) -> CombatState:
+        view = self.battle_view
+        if self._execution_view is None:
+            return view.state
+        return playback_state(view.state, self.events, self.presentation)
+
+    @property
+    def execution_active(self) -> bool:
+        return self._execution_view is not None
+
+    @property
+    def execution_elapsed_ms(self) -> int:
+        return max(0, pygame.time.get_ticks() - self.animation_started_ms)
+
+    @property
+    def execution_phase(self) -> str:
+        if not self.execution_active:
+            return ""
+        prep = REDUCED_PREP_MS if self.ui.reduced_motion else EXECUTE_PREP_MS
+        result = REDUCED_RESULT_MS if self.ui.reduced_motion else EXECUTE_RESULT_MS
+        event_end = prep + presentation_duration_ms(self.events, self.ui.reduced_motion)
+        elapsed = self.execution_elapsed_ms
+        if elapsed < prep:
+            return "prepare"
+        if elapsed < event_end:
+            return "beats"
+        if elapsed < event_end + result:
+            return "result"
+        return "rewrite" if self._causality_rewrite else "complete"
+
+    @property
+    def causality_rewrite_visible(self) -> bool:
+        return self.execution_phase == "rewrite"
+
+    @property
+    def causality_rewrite_progress(self) -> float:
+        if not self.causality_rewrite_visible:
+            return 0.0
+        prep = REDUCED_PREP_MS if self.ui.reduced_motion else EXECUTE_PREP_MS
+        result = REDUCED_RESULT_MS if self.ui.reduced_motion else EXECUTE_RESULT_MS
+        start = prep + presentation_duration_ms(self.events, self.ui.reduced_motion) + result
+        duration = REDUCED_CAUSALITY_MS if self.ui.reduced_motion else CAUSALITY_MS
+        return min(1.0, max(0.0, (self.execution_elapsed_ms - start) / duration))
+
+    @property
+    def reward_acquisition(self) -> PluginDefinition | None:
+        if self._pending_reward_index is None:
+            return None
+        return self.level_run.reward_choices[self._pending_reward_index]
+
+    @property
+    def reward_animation_progress(self) -> float:
+        if self._pending_reward_index is None:
+            return 0.0
+        duration = REDUCED_REWARD_MS if self.ui.reduced_motion else REWARD_ACQUIRE_MS
+        return min(1.0, (pygame.time.get_ticks() - self._reward_started_ms) / duration)
 
     def _handle_key(self, key: int) -> bool:
         if key == pygame.K_ESCAPE:
@@ -195,6 +310,8 @@ class Stage03App:
                 self._start_level()
             return True
         if self.scene is AppScene.REWARD:
+            if self._pending_reward_index is not None:
+                return True
             if key in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self._choose_reward(key - pygame.K_1)
             elif key in (pygame.K_LEFT, pygame.K_a):
@@ -210,14 +327,16 @@ class Stage03App:
             return True
         if self.scene is not AppScene.BATTLE:
             return True
+        if self.execution_active:
+            if key == pygame.K_r:
+                self._start_level()
+            return True
         if key in (pygame.K_1, pygame.K_2, pygame.K_3):
             self._choose_slot(key - pygame.K_1)
         elif key in (pygame.K_RETURN, pygame.K_SPACE):
             self._execute()
         elif key == pygame.K_r:
             self._start_level()
-        elif key == pygame.K_F3:
-            self.ui.debug = not self.ui.debug
         elif key in (pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d) and self.ui.selected_slot is not None:
             direction = {
                 pygame.K_w: Direction.UP,
@@ -233,7 +352,21 @@ class Stage03App:
         return True
 
     def _handle_motion(self, pos: tuple[int, int]) -> None:
-        if self.scene is not AppScene.REWARD:
+        logical = self.renderer.to_logical(pos) if self.renderer is not None else pos
+        if logical is None:
+            self.ui.hovered_slot = None
+            self.ui.protocol_hovered = False
+            return
+        pos = logical
+        self.ui.protocol_hovered = self.scene is AppScene.BATTLE and PROTOCOL_RECT.collidepoint(pos)
+        if self.scene is AppScene.BATTLE:
+            self.ui.hovered_slot = next(
+                (index for index, rect in enumerate(SLOT_RECTS) if rect.collidepoint(pos)),
+                None,
+            )
+            return
+        self.ui.hovered_slot = None
+        if self.scene is not AppScene.REWARD or self._pending_reward_index is not None:
             return
         for index, rect in enumerate(REWARD_RECTS[: len(self.level_run.reward_choices)]):
             if rect.collidepoint(pos):
@@ -243,6 +376,10 @@ class Stage03App:
                 return
 
     def _handle_click(self, pos: tuple[int, int], button: int) -> None:
+        logical = self.renderer.to_logical(pos) if self.renderer is not None else pos
+        if logical is None:
+            return
+        pos = logical
         if button != 1 and not (self.scene is AppScene.BATTLE and button == 3):
             return
         if button == 1 and self.tutorial.current is not None:
@@ -267,6 +404,10 @@ class Stage03App:
             self._handle_battle_click(pos, button)
 
     def _handle_battle_click(self, pos: tuple[int, int], button: int) -> None:
+        if self.execution_active:
+            if RESTART_RECT.collidepoint(pos):
+                self._start_level()
+            return
         encounter = self.level_run.encounter
         for index, rect in enumerate(SLOT_RECTS):
             if rect.collidepoint(pos):
@@ -318,11 +459,17 @@ class Stage03App:
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
         self._last_execute_click_ms = -1000
+        self._execution_view = None
+        self._post_execute_events = ()
+        self._post_execute_scene = AppScene.BATTLE
+        self._pending_reward_index = None
+        self._causality_rewrite = False
         self.tutorial.begin_level_one()
         self._sync_tutorial_metrics()
         self._snapshot_metrics()
         self.audio.play_music("battle")
         self.audio.play("click")
+        self._capture_causality_baseline()
 
     def _seed_opening_commands(self) -> None:
         encounter_id = self.level_run.current_definition.encounter_id
@@ -358,7 +505,10 @@ class Stage03App:
         elif self.ui.selected_slot == index:
             self.ui.selected_slot = None
         else:
-            self.level_run.encounter.swap_slots(self.ui.selected_slot, index)
+            first = self.ui.selected_slot
+            self.level_run.encounter.swap_slots(first, index)
+            self.ui.swap_pair = (first, index)
+            self.ui.swap_started_ms = pygame.time.get_ticks()
             self.ui.selected_slot = None
             self.ui.feedback = "顺序已改变；预演结果已同步刷新。"
             self.audio.play("click")
@@ -426,14 +576,32 @@ class Stage03App:
         self._advance_tutorial()
 
     def _execute(self) -> None:
-        if self.scene is not AppScene.BATTLE or self.level_run.phase is not LevelPhase.BATTLE:
+        if (
+            self.scene is not AppScene.BATTLE
+            or self.level_run.phase is not LevelPhase.BATTLE
+            or self.execution_active
+        ):
             return
-        expected = state_fingerprint(self.preview.state)
+        encounter = self.level_run.encounter
+        planned_preview = encounter.preview()
+        expected = state_fingerprint(planned_preview.state)
         old_index = self.level_run.encounter_index
         encounter_id = self.level_run.current_definition.encounter_id
+        execution_view = BattleView(
+            encounter.state.clone(),
+            tuple(encounter.commands),
+            planned_preview,
+            self.level_run.current_definition,
+            self.level_run.definition.display_name,
+            self.level_index + 1,
+            self.level_run.progress,
+            self.level_run.build_summary,
+            self.level_run.plugin_definitions,
+            self.level_run.run_seed,
+        )
         resolution = self.level_run.confirm_turn()
         self.ui.verification_ok = state_fingerprint(resolution.result.state) == expected
-        self.events = resolution.result.events + resolution.preparation_events
+        self.events = resolution.result.events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
         self.ui.selected_slot = None
@@ -451,16 +619,17 @@ class Stage03App:
             tuple(self.level_run.player_plugins),
             resolution.outcome.value,
         )
+        target_scene = AppScene.BATTLE
         if self.level_run.phase is LevelPhase.REWARD:
-            self.scene = AppScene.REWARD
+            target_scene = AppScene.REWARD
             self.ui.reward_focus = 0
         elif self.level_run.phase is LevelPhase.DEFEAT:
-            self.scene = AppScene.RESULT
+            target_scene = AppScene.RESULT
         elif self.level_run.phase is LevelPhase.LEVEL_CLEAR:
             if self.level_index + 1 < len(self.level_definitions):
-                self.scene = AppScene.TRANSITION
+                target_scene = AppScene.TRANSITION
             else:
-                self.scene = AppScene.RESULT
+                target_scene = AppScene.RESULT
             self.audio.play("level_clear" if self.level_index == 0 else "demo_clear")
         elif self.level_run.encounter_index != old_index:
             self._seed_opening_commands()
@@ -474,14 +643,41 @@ class Stage03App:
             self.ui.feedback = "新遭遇已接入；生命与协议保留，敌人状态已重置。"
         else:
             self.ui.feedback = "回合已结算；敌人重新定位并公开下一轮意图。"
+        self._causality_rewrite = meaningful_rewrite(
+            self._causality_baseline,
+            resolution.result.state,
+            resolution.result.events,
+        )
+        animate = self.renderer is not None and not self.smoke_test
+        if animate:
+            self._execution_view = execution_view
+            self._post_execute_events = resolution.preparation_events
+            self._post_execute_scene = target_scene
+            self.scene = AppScene.BATTLE
+        else:
+            self.events += resolution.preparation_events
+            self.scene = target_scene
+            self._causality_rewrite = False
+            if target_scene is AppScene.BATTLE:
+                self._capture_causality_baseline()
         self._snapshot_metrics()
 
     def _choose_reward(self, index: int) -> None:
         choices = self.level_run.reward_choices
-        if not 0 <= index < len(choices):
+        if not 0 <= index < len(choices) or self._pending_reward_index is not None:
             return
-        plugin = choices[index]
+        self.ui.reward_focus = index
+        if self.renderer is not None and not self.smoke_test:
+            self._pending_reward_index = index
+            self._reward_started_ms = pygame.time.get_ticks()
+            self.audio.play("confirm")
+            return
+        self._commit_reward(index)
+
+    def _commit_reward(self, index: int) -> None:
+        plugin = self.level_run.reward_choices[index]
         self.level_run.choose_reward(plugin.plugin_id)
+        self._pending_reward_index = None
         self.scene = AppScene.BATTLE
         self.ui.selected_slot = None
         self.ui.feedback = f"{plugin.display_name} 已接入：{plugin.description}"
@@ -491,6 +687,7 @@ class Stage03App:
         self._last_audio_event_index = None
         self._snapshot_metrics()
         self.audio.play("reward")
+        self._capture_causality_baseline()
 
     def _start_next_level(self) -> None:
         if self.level_index + 1 >= len(self.level_definitions):
@@ -516,11 +713,16 @@ class Stage03App:
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
+        self._execution_view = None
+        self._post_execute_events = ()
+        self._post_execute_scene = AppScene.BATTLE
+        self._pending_reward_index = None
         self.tutorial.begin_level_two()
         self._sync_tutorial_metrics()
         self._snapshot_metrics()
         self.audio.play_music("battle")
         self.audio.play("inverse")
+        self._capture_causality_baseline()
 
     def active_event(self) -> LogicEvent | None:
         return self.presentation.event
@@ -528,7 +730,52 @@ class Stage03App:
     @property
     def presentation(self) -> PresentationFrame:
         elapsed = pygame.time.get_ticks() - self.animation_started_ms
+        if self.execution_active:
+            prep = REDUCED_PREP_MS if self.ui.reduced_motion else EXECUTE_PREP_MS
+            if elapsed < prep:
+                return PresentationFrame(None, None, 0.0, (0, 0), 0.0, 0)
+            elapsed -= prep
         return presentation_frame(self.events, elapsed, self.ui.reduced_motion)
+
+    def _update_presentation_state(self) -> None:
+        if self.execution_active:
+            prep = REDUCED_PREP_MS if self.ui.reduced_motion else EXECUTE_PREP_MS
+            result = REDUCED_RESULT_MS if self.ui.reduced_motion else EXECUTE_RESULT_MS
+            rewrite = 0
+            if self._causality_rewrite:
+                rewrite = (
+                    REDUCED_CAUSALITY_MS
+                    if self.ui.reduced_motion
+                    else CAUSALITY_MS
+                )
+            total = (
+                prep
+                + presentation_duration_ms(self.events, self.ui.reduced_motion)
+                + result
+                + rewrite
+            )
+            if self.execution_elapsed_ms >= total:
+                target_scene = self._post_execute_scene
+                post_events = self._post_execute_events
+                self._execution_view = None
+                self._post_execute_events = ()
+                self._post_execute_scene = AppScene.BATTLE
+                self._causality_rewrite = False
+                self.scene = target_scene
+                self.events = post_events
+                self.animation_started_ms = pygame.time.get_ticks()
+                self._last_audio_event_index = None
+                if target_scene is AppScene.BATTLE:
+                    self._capture_causality_baseline()
+        if self._pending_reward_index is not None:
+            duration = (
+                REDUCED_REWARD_MS
+                if self.ui.reduced_motion
+                else REWARD_ACQUIRE_MS
+            )
+            if pygame.time.get_ticks() - self._reward_started_ms >= duration:
+                index = self._pending_reward_index
+                self._commit_reward(index)
 
     def _update_presentation_audio(self) -> None:
         frame = self.presentation
@@ -544,20 +791,11 @@ class Stage03App:
             self.audio.play(cue)
 
     def preview_label(self, slot: int) -> str:
-        labels = [EVENT_LABELS.get(event.kind, event.kind) for event in self.preview.events if event.tick == slot]
+        labels = [EVENT_LABELS.get(event.kind, "战术事件") for event in self.preview.events if event.tick == slot]
         return " / ".join(labels) or "无事件"
 
-    @staticmethod
-    def command_label(command: Command) -> str:
-        names = {
-            CommandType.WAIT: "待机",
-            CommandType.MOVE: "移动",
-            CommandType.PUSH: "推击",
-            CommandType.PULL: "牵引",
-            CommandType.SHIELD: "护盾",
-        }
-        suffix = f" · {command.direction.name}" if command.direction is not None else f" · {command.target_entity_id}" if command.target_entity_id else ""
-        return names[command.command_type] + suffix
+    def command_label(self, command: Command) -> str:
+        return command_display_label(command, self.battle_view)
 
     def _run_flow_smoke(self) -> None:
         from src.stage03_smoke import run_flow_smoke
@@ -594,6 +832,12 @@ class Stage03App:
             player.hp if player is not None else 0,
             tuple(self.level_run.player_plugins),
         )
+
+    def _capture_causality_baseline(self) -> None:
+        if self.level_run.phase is LevelPhase.BATTLE:
+            self._causality_baseline = self.level_run.encounter.preview().state.clone()
+        else:
+            self._causality_baseline = None
 
     def _handle_focus_lost(self) -> None:
         self.ui.selected_slot = None

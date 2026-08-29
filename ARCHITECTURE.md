@@ -168,7 +168,7 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - `presentation/stage03_renderer.py`：复用单个离屏画布、字体和文本 Surface，按事件插值位移并绘制命中、护盾、死亡、规则与 Build 反馈；Level 1/2 使用青色/紫色语义，但危险仍用固定红色并辅以斜线与文字；
 - `presentation/audio.py`：启动时一次性合成并缓存 20 个短 cue 与 Menu/Battle/Final 三段循环 BGM，使用保留声道、统一主音量和静音；设备不可用时清空声音并静默降级；
 - `Stage03App`：只保存选中态、音量、减弱动态、动画起点与已播放事件索引；按键和鼠标仍只翻译为领域命令，表现更新不进入 Simulator；
-- 全局设置使用 `M`、`- / +`、`F2`，Debug 仍默认关闭并仅由 `F3` 开启。
+- 全局设置使用 `M`、`- / +`、`F2`；正式界面不再暴露开发调试入口。
 
 表现依赖保持 `LogicEvent[] → PresentationFrame → Renderer/CueAudio`。命中停顿感是单个事件展示时长变化，不暂停或重复模拟；震动只偏移缓存画布，不改变坐标事实。600 帧无窗口基准平均约 `2.16 ms/frame`，不逐帧读文件、建字体或加载音频。
 
@@ -181,3 +181,13 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - `stage03_smoke.py`：正式 Smoke 路径显式覆盖 Level 1 五个概念、Level 2 顺序/锚点/首次切相以及 Restart。
 
 依赖新增为 `Stage03App → ContextualTutorial / SessionMetrics`。二者均位于领域层之外；Preview 和 Execute 仍唯一依赖 `simulate_turn`，引导、日志和防抖不能改变确定性战斗结果。
+
+## 20. Final Visual Polish 表现强化
+
+- `presentation/battle_view.py`：集中把 Entity/Protocol 内部 ID 解析为类型化配置中的玩家显示名，并保存一次 Execute 的只读来源状态、命令和同源 Preview；
+- `presentation/effects.py`：按逻辑 tick 把事件组合为 340～390 ms 的战术拍，使用事件事实构造只读播放状态；Reduce Motion 使用 90 ms 拍并关闭震动、扫描扰动和大位移；
+- `Stage03App`：领域结算仍在确认时立即完成；正式 Renderer 存在时只延迟场景切换，依次展示准备、三拍、结果和可选因果改写。自动测试与 Smoke 可绕过等待；
+- `Stage03Renderer`：固定 1280×800 逻辑画布，按输出尺寸等比居中缩放并反算鼠标坐标；1600×900、1920×1080 和较低高度窗口均不裁切；
+- Preview ghost、Action Slot 交换、CORE/SHIELD 闪色、Encounter 节点脉冲、规则翻转、Protocol HUD 与 Reward 获得动画只消费 BattleView/LogicEvent/UI 时间，不写入领域状态。
+
+依赖保持 `Simulator → LogicEvent/SimulationResult → BattleView/PresentationFrame → Renderer/Audio`。没有第二套 Preview、第二套战斗结算或新的随机源。

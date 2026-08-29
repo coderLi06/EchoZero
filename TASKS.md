@@ -42,6 +42,15 @@
 
 ## 开发中
 
+### Final Visual Polish：最终展示视觉强化（已完成实现验收）
+
+- [x] P0 修复顶部 safe-area 与响应式输出；验收：1280×800 逻辑画布在 1600×900、1920×1080 等比居中，无裁切并正确反算鼠标；
+- [x] P0 清理正式界面内部 ID、Demo 重启与 Debug 痕迹；验收：牵引、事件和协议统一使用类型化 displayName/玩家文案；
+- [x] P0 建立准备→三拍→结果的事件执行轨与选择性因果改写；验收：领域状态立即确定，胜利回合也在转场前完整播放；
+- [x] P0 强化 Preview ghost、Protocol HUD、Reward 卡牌与 680 ms 获得演出；验收：不改变 Reward、Build、协议数或 Simulator；
+- [x] P1 增加 Slot hover/160 ms 交换、数字闪色、Encounter 脉冲与 Reverse 翻转；验收：Reduce Motion 均有短时或静态 fallback；
+- [x] P0 完成 12 张最终截图 QA、85 项自动化测试与正式入口 Smoke；验收：Stage01～07 无回归，固定 Seed 与 Preview == Execute 保持。
+
 ### Stage 07：外部盲测准备、UX 与新玩家引导（代码侧完成，真人盲测待执行）
 
 - [x] P0 Level 1 就地引导；评分：易懂性、演示；验收：三拍槽、填写、Intent、Preview、Execute 一次一个概念，可继续或整局跳过；

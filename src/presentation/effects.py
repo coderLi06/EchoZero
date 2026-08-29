@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.domain import LogicEvent
+from src.domain import CombatState, LogicEvent
 
-BASE_EVENT_MS = 190
+BASE_EVENT_MS = 340
 REDUCED_EVENT_MS = 90
-IMPACT_EVENT_MS = 250
+IMPACT_EVENT_MS = 390
+EXECUTE_PREP_MS = 160
+REDUCED_PREP_MS = 50
+EXECUTE_RESULT_MS = 240
+REDUCED_RESULT_MS = 70
+CAUSALITY_MS = 820
+REDUCED_CAUSALITY_MS = 320
+REWARD_ACQUIRE_MS = 680
+REDUCED_REWARD_MS = 180
 
 IMPACT_KINDS = frozenset({"damaged", "died", "push_blocked"})
 MOVEMENT_KINDS = frozenset({"moved", "enemy_moved", "pushed", "pulled"})
@@ -49,6 +57,8 @@ class PresentationFrame:
     event_index: int | None
     progress: float
     shake: tuple[int, int]
+    beat_progress: float = 1.0
+    active_tick: int | None = None
 
 
 def event_duration_ms(event: LogicEvent, reduced_motion: bool) -> int:
@@ -64,14 +74,92 @@ def presentation_frame(
     if not visible:
         return PresentationFrame(None, None, 1.0, (0, 0))
     remaining = max(0, elapsed_ms)
-    for index, event in enumerate(visible):
-        duration = event_duration_ms(event, reduced_motion)
+    cursor = 0
+    while cursor < len(visible):
+        tick = visible[cursor].tick
+        end = cursor + 1
+        while end < len(visible) and visible[end].tick == tick:
+            end += 1
+        group = visible[cursor:end]
+        duration = max(event_duration_ms(event, reduced_motion) for event in group)
         if remaining < duration:
-            progress = min(1.0, remaining / max(1, duration))
-            shake = _shake(event, remaining, reduced_motion)
-            return PresentationFrame(event, index, progress, shake)
+            segment = duration / len(group)
+            local_index = min(len(group) - 1, int(remaining / max(1.0, segment)))
+            event = group[local_index]
+            event_elapsed = remaining - local_index * segment
+            progress = min(1.0, event_elapsed / max(1.0, segment))
+            shake = _shake(event, round(event_elapsed), reduced_motion)
+            return PresentationFrame(
+                event,
+                cursor + local_index,
+                progress,
+                shake,
+                min(1.0, remaining / max(1, duration)),
+                tick,
+            )
         remaining -= duration
+        cursor = end
     return PresentationFrame(None, None, 1.0, (0, 0))
+
+
+def presentation_duration_ms(
+    events: tuple[LogicEvent, ...], reduced_motion: bool
+) -> int:
+    visible = tuple(event for event in events if event.kind != "waited")
+    duration = 0
+    cursor = 0
+    while cursor < len(visible):
+        tick = visible[cursor].tick
+        end = cursor + 1
+        while end < len(visible) and visible[end].tick == tick:
+            end += 1
+        duration += max(
+            event_duration_ms(event, reduced_motion) for event in visible[cursor:end]
+        )
+        cursor = end
+    return duration
+
+
+def playback_state(
+    origin: CombatState,
+    events: tuple[LogicEvent, ...],
+    frame: PresentationFrame,
+) -> CombatState:
+    """Replay committed event facts for rendering; never feeds back into combat."""
+    state = origin.clone()
+    visible = tuple(event for event in events if event.kind != "waited")
+    completed = len(visible) if frame.event_index is None else frame.event_index
+    if frame.event_index is not None and frame.progress >= 0.55:
+        completed += 1
+    for event in visible[:completed]:
+        if event.kind == "moved":
+            entity = state.entities.get(event.actor_id)
+            if entity is not None and event.to_pos is not None:
+                entity.pos = event.to_pos
+        elif event.kind in {"pushed", "pulled"}:
+            entity = state.entities.get(event.target_id or "")
+            if entity is not None and event.to_pos is not None:
+                entity.pos = event.to_pos
+        elif event.kind == "shielded":
+            entity = state.entities.get(event.actor_id)
+            if entity is not None:
+                entity.shield += event.amount
+        elif event.kind == "shield_absorbed":
+            entity = state.entities.get(event.target_id or "")
+            if entity is not None:
+                entity.shield = max(0, entity.shield - event.amount)
+        elif event.kind == "damaged":
+            entity = state.entities.get(event.target_id or "")
+            if entity is not None:
+                entity.hp -= event.amount
+        elif event.kind == "died":
+            state.entities.pop(event.target_id or "", None)
+        elif event.kind == "intent_cancelled":
+            state.enemy_intents = tuple(
+                intent for intent in state.enemy_intents
+                if intent.actor_id != event.actor_id
+            )
+    return state
 
 
 def cue_for_event(event: LogicEvent) -> str | None:
@@ -87,7 +175,7 @@ def plugin_feedback(event: LogicEvent | None) -> str | None:
     if event is None:
         return None
     if event.kind == "plugin_triggered":
-        return PLUGIN_LABELS.get(event.detail, f"协议触发 · {event.detail}")
+        return PLUGIN_LABELS.get(event.detail, "协议触发")
     if event.kind == "shielded" and event.detail == "resonance_buffer":
         return PLUGIN_LABELS["resonance_buffer"]
     if event.kind == "damaged" and event.detail == "collision":

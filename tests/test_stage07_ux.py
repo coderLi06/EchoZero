@@ -95,7 +95,7 @@ def test_renderer_exposes_shield_preview_and_reward_relations() -> None:
     renderer = Stage03Renderer(pygame.Surface(WINDOW_SIZE))
     renderer.draw(app)
     rendered_text = {key[0] for key in renderer.text_cache}
-    assert any(text.startswith("CORE  6/6   /   SHIELD") for text in rendered_text)
+    assert any(text.startswith("CORE 6/6  //  SHIELD") for text in rendered_text)
     assert any(text.startswith("预演终态  CORE") and "SHIELD" in text for text in rendered_text)
 
     app._run_flow_smoke()

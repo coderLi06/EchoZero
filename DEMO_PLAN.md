@@ -142,4 +142,14 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - 新增测试覆盖引导只显示一次与跳过持久、标准首回合自然推进、离线摘要和 Level 2 首次失败位置、Shield/Build 文案、失焦、快速点击、48 px 点击区、ESC 与 1600×900 / 1920×1080 窗口容纳；全量为 78 项；
 - 三张 1280×800 原始截图复核了 Level 1 引导、Reward 和 Level 2 引导：提示不遮棋盘，黄色目标描边不覆盖危险语义，逆相紫色、相位锚绿色和红色 Intent 同屏可分；
 - 三 Build 仍按 6 / 5 / 8 回合固定路线通过 Level 2，符合回声规划、动能主动、屏障安全的差异，因此本阶段未调整协议、敌人或 Simulator 数值；
-- 1366×768 等低于逻辑画布高度的桌面仍需发布机实测窗口边框占用；本阶段未引入高风险动态缩放。真人外部盲测与真实音箱主观混音仍待执行。
+- 1366×768 等低于逻辑画布高度的窗口已由后续等比逻辑画布缩放覆盖；真人外部盲测与真实音箱主观混音仍待执行。
+
+## 18. Final Visual Polish 验收（2026-08-29）
+
+- 正式画面使用 28 px 顶部 safe-area；战斗 Logo 降为辅助标识，关卡编号与 Encounter 标题成为左上主信息；
+- 1280×800 逻辑画布在 1600×900 输出为 1440×900、左右各 80 px 安全留边；在 1920×1080 输出为 1728×1080、左右各 96 px 安全留边；鼠标坐标反算自动测试通过；
+- Execute 使用只读事件回放依次展示准备、三拍、结果；移动/推击/牵引方向线、敌方攻击/MISS、碎片化死亡、CORE/SHIELD 闪色和 Action Card 同步高亮均不参与结算；
+- 仅当相对编辑前基准确实避免伤害、减少敌人或取消意图时显示不超过 820 ms 的 `CAUSALITY REWRITTEN / 因果已改写`；Reduce Motion 改为 320 ms 淡入淡出；
+- Preview 增加低权重终点轮廓和方向箭头；Protocol 常驻区显示核心协议、英文代码与附加模块；Reward 增加卡牌类型、紫色焦点及 680 ms 获得反馈；
+- 视觉 QA 共 12 张：Main Menu、Level 1、Intent/Preview/Execute 教学、Reward、Protocol Acquired、Build 常驻、Level 2 Reverse、执行拍、因果改写、1920×1080；未见裁切、内部 ID、意外滚动区域或新增 console error；
+- 全量 `pytest` 为 85 passed；固定 Seed `10303` 正式入口 Smoke 完成双关卡、两次 Reward、Stable/Reverse、Phase Anchor、Final Encounter、终局与 Restart。
