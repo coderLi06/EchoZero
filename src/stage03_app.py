@@ -21,8 +21,10 @@ from src.domain import (
     state_fingerprint,
 )
 from src.infrastructure import ContentLoadError, load_demo_content
+from src.infrastructure.session_metrics import SessionMetrics
 from src.presentation.audio import CueAudio
 from src.presentation.effects import PresentationFrame, cue_for_event, presentation_frame
+from src.presentation.tutorial import ContextualTutorial
 from src.presentation.stage03_renderer import (
     CELL_SIZE,
     EXECUTE_RECT,
@@ -32,6 +34,8 @@ from src.presentation.stage03_renderer import (
     RESULT_RESTART_RECT,
     REWARD_RECTS,
     SLOT_RECTS,
+    TUTORIAL_NEXT_RECT,
+    TUTORIAL_SKIP_RECT,
     WINDOW_SIZE,
     EVENT_LABELS,
     Stage03Renderer,
@@ -67,11 +71,18 @@ class Stage03App:
         seed: int | None = None,
         random_rewards: bool = False,
         rng: random.Random | None = None,
+        metrics_path: Path | None = None,
     ) -> None:
         self.smoke_test = smoke_test
         self.screen: pygame.Surface | None = None
         self.renderer: Stage03Renderer | None = None
         self.audio = CueAudio()
+        self.tutorial = ContextualTutorial()
+        self.metrics = SessionMetrics()
+        self.metrics_path = metrics_path or (
+            Path(__file__).resolve().parents[1] / "logs" / "session_summary.txt"
+        )
+        self.metrics_error: str | None = None
         self.scene = AppScene.MENU
         self.ui = Stage03UiState()
         self.events: tuple[LogicEvent, ...] = ()
@@ -81,6 +92,8 @@ class Stage03App:
         self._fixed_seed = seed
         self._random_rewards = random_rewards
         self._seed_source = rng or random.Random()
+        self._has_started_run = False
+        self._last_execute_click_ms = -1000
         try:
             levels, plugins = load_demo_content(data_root)
             self.level_definitions = levels
@@ -115,6 +128,8 @@ class Stage03App:
                         self._handle_click(event.pos, event.button)
                     elif event.type == pygame.MOUSEMOTION:
                         self._handle_motion(event.pos)
+                    elif event.type == pygame.WINDOWFOCUSLOST:
+                        self._handle_focus_lost()
                 self._update_presentation_audio()
                 self.renderer.draw(self)
                 pygame.display.flip()
@@ -124,6 +139,11 @@ class Stage03App:
                 clock.tick(60)
             return 2 if self.load_error is not None else 0
         finally:
+            self._sync_tutorial_metrics()
+            try:
+                self.metrics.write(self.metrics_path)
+            except OSError as exc:
+                self.metrics_error = str(exc)
             pygame.quit()
 
     @property
@@ -133,6 +153,12 @@ class Stage03App:
     def _handle_key(self, key: int) -> bool:
         if key == pygame.K_ESCAPE:
             return False
+        if key == pygame.K_F1:
+            self._skip_tutorial()
+            return True
+        if key == pygame.K_TAB and self.tutorial.current is not None:
+            self._advance_tutorial()
+            return True
         if key == pygame.K_m:
             self.ui.muted = not self.ui.muted
             self.audio.set_muted(self.ui.muted)
@@ -219,6 +245,13 @@ class Stage03App:
     def _handle_click(self, pos: tuple[int, int], button: int) -> None:
         if button != 1 and not (self.scene is AppScene.BATTLE and button == 3):
             return
+        if button == 1 and self.tutorial.current is not None:
+            if TUTORIAL_NEXT_RECT.collidepoint(pos):
+                self._advance_tutorial()
+                return
+            if TUTORIAL_SKIP_RECT.collidepoint(pos):
+                self._skip_tutorial()
+                return
         if self.scene is AppScene.MENU and MENU_START_RECT.collidepoint(pos):
             self._start_level()
         elif self.scene is AppScene.RESULT and RESULT_RESTART_RECT.collidepoint(pos):
@@ -244,7 +277,8 @@ class Stage03App:
                     self._choose_slot(index)
                 return
         if EXECUTE_RECT.collidepoint(pos):
-            self._execute()
+            if self._accept_execute_click():
+                self._execute()
         elif RESTART_RECT.collidepoint(pos):
             self._start_level()
         elif self.ui.selected_slot is not None:
@@ -255,6 +289,9 @@ class Stage03App:
     def _start_level(self) -> None:
         if self.load_error is not None:
             return
+        if self._has_started_run:
+            self.metrics.record_retry()
+        self._has_started_run = True
         muted = self.ui.muted
         reduced_motion = self.ui.reduced_motion
         volume_percent = self.ui.volume_percent
@@ -268,6 +305,7 @@ class Stage03App:
         self.level_run = LevelRun(
             self.level_definitions[0], self.plugin_definitions, run_seed
         )
+        self.metrics.start_run(run_seed)
         self.scene = AppScene.BATTLE
         self.ui = Stage03UiState(
             feedback="先观察红色锁定格，再调整三拍顺序。",
@@ -279,6 +317,10 @@ class Stage03App:
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
+        self._last_execute_click_ms = -1000
+        self.tutorial.begin_level_one()
+        self._sync_tutorial_metrics()
+        self._snapshot_metrics()
         self.audio.play_music("battle")
         self.audio.play("click")
 
@@ -320,6 +362,7 @@ class Stage03App:
             self.ui.selected_slot = None
             self.ui.feedback = "顺序已改变；预演结果已同步刷新。"
             self.audio.play("click")
+        self._advance_tutorial()
 
     def _assign_from_cell(self, cell: GridPos) -> None:
         state = self.level_run.encounter.state
@@ -380,12 +423,14 @@ class Stage03App:
         self.ui.feedback = f"第 {slot} 拍：{self.command_label(command)}。"
         self.ui.selected_slot = None
         self.audio.play("slot")
+        self._advance_tutorial()
 
     def _execute(self) -> None:
         if self.scene is not AppScene.BATTLE or self.level_run.phase is not LevelPhase.BATTLE:
             return
         expected = state_fingerprint(self.preview.state)
         old_index = self.level_run.encounter_index
+        encounter_id = self.level_run.current_definition.encounter_id
         resolution = self.level_run.confirm_turn()
         self.ui.verification_ok = state_fingerprint(resolution.result.state) == expected
         self.events = resolution.result.events + resolution.preparation_events
@@ -393,6 +438,19 @@ class Stage03App:
         self._last_audio_event_index = None
         self.ui.selected_slot = None
         self.audio.play("confirm")
+        self._advance_tutorial()
+        if any(event.kind == "rule_changed" for event in resolution.result.events):
+            self.tutorial.show_once("phase_switch")
+        self._sync_tutorial_metrics()
+        resolved_player = resolution.result.state.entities.get("player")
+        self.metrics.record_turn(
+            self.level_index + 1,
+            encounter_id,
+            max(0, resolution.result.state.turn - 1),
+            resolved_player.hp if resolved_player is not None else 0,
+            tuple(self.level_run.player_plugins),
+            resolution.outcome.value,
+        )
         if self.level_run.phase is LevelPhase.REWARD:
             self.scene = AppScene.REWARD
             self.ui.reward_focus = 0
@@ -416,6 +474,7 @@ class Stage03App:
             self.ui.feedback = "新遭遇已接入；生命与协议保留，敌人状态已重置。"
         else:
             self.ui.feedback = "回合已结算；敌人重新定位并公开下一轮意图。"
+        self._snapshot_metrics()
 
     def _choose_reward(self, index: int) -> None:
         choices = self.level_run.reward_choices
@@ -430,6 +489,7 @@ class Stage03App:
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
+        self._snapshot_metrics()
         self.audio.play("reward")
 
     def _start_next_level(self) -> None:
@@ -456,6 +516,9 @@ class Stage03App:
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
+        self.tutorial.begin_level_two()
+        self._sync_tutorial_metrics()
+        self._snapshot_metrics()
         self.audio.play_music("battle")
         self.audio.play("inverse")
 
@@ -505,3 +568,41 @@ class Stage03App:
         for command in commands:
             self.level_run.encounter.set_command(command)
         self._execute()
+
+    def _advance_tutorial(self) -> None:
+        if self.tutorial.current is None:
+            return
+        self.tutorial.advance()
+        self._sync_tutorial_metrics()
+
+    def _skip_tutorial(self) -> None:
+        self.tutorial.skip()
+        self._sync_tutorial_metrics()
+        self.ui.feedback = "教学已跳过；F1 状态会保留到本次程序关闭。"
+
+    def _sync_tutorial_metrics(self) -> None:
+        self.metrics.sync_tutorial(self.tutorial.shown, self.tutorial.skipped)
+
+    def _snapshot_metrics(self) -> None:
+        if self.load_error is not None:
+            return
+        player = self.level_run.encounter.state.entities.get("player")
+        self.metrics.snapshot(
+            self.level_index + 1,
+            self.level_run.current_definition.encounter_id,
+            max(0, self.level_run.encounter.state.turn - 1),
+            player.hp if player is not None else 0,
+            tuple(self.level_run.player_plugins),
+        )
+
+    def _handle_focus_lost(self) -> None:
+        self.ui.selected_slot = None
+        self.ui.feedback = "窗口失焦：已取消槽位选择，战斗不会自动执行。"
+
+    def _accept_execute_click(self) -> bool:
+        now = pygame.time.get_ticks()
+        if now - self._last_execute_click_ms < 180:
+            self.ui.feedback = "已忽略连续点击；请先查看本回合因果反馈。"
+            return False
+        self._last_execute_click_ms = now
+        return True

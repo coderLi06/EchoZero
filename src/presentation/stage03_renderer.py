@@ -14,11 +14,16 @@ CELL_SIZE = 72
 GRID_ORIGIN = (48, 174)
 PANEL_X = 664
 SLOT_RECTS = tuple(pygame.Rect(PANEL_X, 306 + index * 78, 568, 64) for index in range(3))
+INTENT_RECT = pygame.Rect(PANEL_X, 146, 568, 92)
+TIMELINE_RECT = pygame.Rect(PANEL_X, 246, 568, 48)
 EXECUTE_RECT = pygame.Rect(PANEL_X, 558, 370, 58)
 RESTART_RECT = pygame.Rect(1050, 558, 182, 58)
+PREVIEW_RECT = pygame.Rect(PANEL_X, 626, 568, 38)
 MENU_START_RECT = pygame.Rect(460, 568, 360, 64)
 REWARD_RECTS = tuple(pygame.Rect(96 + index * 376, 260, 336, 300) for index in range(3))
 RESULT_RESTART_RECT = pygame.Rect(448, 586, 384, 62)
+TUTORIAL_NEXT_RECT = pygame.Rect(326, 694, 138, 48)
+TUTORIAL_SKIP_RECT = pygame.Rect(474, 694, 138, 48)
 
 COLORS = {
     "background": (7, 10, 18),
@@ -139,6 +144,7 @@ class Stage03Renderer:
         self._draw_hud(app)
         self._draw_event_strip(app)
         self._rule_overlay(app)
+        self._tutorial_highlight(app)
 
     def _progress(self, current: int, total: int) -> None:
         start_x = 950
@@ -277,13 +283,26 @@ class Stage03Renderer:
         encounter = run.encounter
         player = encounter.state.entities.get("player")
         hp = "--" if player is None else f"{player.hp}/{player.max_hp}"
-        self._text_at(f"CORE  {hp}", 18, COLORS["text"], (PANEL_X, 108), True)
+        shield = "--" if player is None else str(player.shield)
+        self._text_at(
+            f"CORE  {hp}   /   SHIELD  {shield}",
+            18,
+            COLORS["text"],
+            (PANEL_X, 108),
+            True,
+        )
         plugin_names = [
             definition.display_name + (f"×{stacks}" if stacks > 1 else "")
             for definition, stacks in run.build_summary
         ]
-        self._text_at("协议  " + (" / ".join(plugin_names) if plugin_names else "尚未安装"), 14, COLORS["violet"], (PANEL_X + 180, 111), True)
-        intent_rect = pygame.Rect(PANEL_X, 146, 568, 92)
+        self._text_at(
+            "协议  " + (" / ".join(plugin_names) if plugin_names else "尚未安装"),
+            13,
+            COLORS["violet"],
+            (PANEL_X + 260, 112),
+            True,
+        )
+        intent_rect = INTENT_RECT
         self._panel(intent_rect, COLORS["danger"] if encounter.state.enemy_intents else COLORS["border"])
         self._text_at("公开意图", 15, COLORS["danger"], (intent_rect.x + 16, intent_rect.y + 12), True)
         intents = encounter.state.enemy_intents
@@ -319,7 +338,12 @@ class Stage03Renderer:
         preview = app.preview.state
         preview_player = preview.entities.get("player")
         enemy_count = sum(entity.faction is Faction.ENEMY for entity in preview.entities.values())
-        prediction = f"预演终态  CORE {preview_player.hp if preview_player else 0}  /  威胁 {enemy_count}"
+        preview_hp = preview_player.hp if preview_player else 0
+        preview_shield = preview_player.shield if preview_player else 0
+        prediction = (
+            f"预演终态  CORE {preview_hp}  /  SHIELD {preview_shield}"
+            f"  /  威胁 {enemy_count}"
+        )
         self._text_at(prediction, 15, COLORS["success"] if preview_player else COLORS["danger"], (PANEL_X, 638), True)
         self._text_at(run.current_definition.hint, 14, COLORS["warning"], (PANEL_X, 670))
         self._text_at(app.ui.feedback, 13, COLORS["muted"], (PANEL_X, 702))
@@ -332,7 +356,7 @@ class Stage03Renderer:
             self._center(f"◆  BUILD ONLINE  //  {banner}", 14, COLORS["text"], rect.center, True)
 
     def _timeline_bar(self, app: Any, rule: TimelineRule) -> None:
-        rect = pygame.Rect(PANEL_X, 246, 568, 48)
+        rect = TIMELINE_RECT
         inverse = rule is TimelineRule.REVERSE
         color = COLORS["violet"] if inverse else COLORS["primary"]
         self._panel(rect, color, inverse)
@@ -364,6 +388,9 @@ class Stage03Renderer:
         return displayed
 
     def _draw_event_strip(self, app: Any) -> None:
+        if app.tutorial.current is not None:
+            self._tutorial_panel(app)
+            return
         rect = pygame.Rect(48, 626, 576, 126)
         self._panel(rect, COLORS["border"])
         self._text_at("因果反馈", 14, COLORS["primary"], (rect.x + 14, rect.y + 10), True)
@@ -395,7 +422,15 @@ class Stage03Renderer:
             self._protocol_icon(plugin.plugin_id, (rect.centerx, rect.y + 92))
             self._center(plugin.display_name, 24, COLORS["text"], (rect.centerx, rect.y + 154), True)
             self._center(" · ".join(plugin.tags), 13, COLORS["violet"], (rect.centerx, rect.y + 180), True)
-            self._wrapped(plugin.description, 15, COLORS["muted"], pygame.Rect(rect.x + 30, rect.y + 202, rect.width - 60, 78), 24)
+            relation = self._build_relation(plugin, run)
+            self._center(relation, 13, COLORS["warning"], (rect.centerx, rect.y + 205), True)
+            self._wrapped(
+                plugin.description,
+                13,
+                COLORS["muted"],
+                pygame.Rect(rect.x + 30, rect.y + 226, rect.width - 60, 48),
+                19,
+            )
             self._center(f"{index + 1}  安装协议" if not focused else "ENTER  确认安装", 15, COLORS["primary"], (rect.centerx, rect.bottom - 32), True)
         self._center("← / → 或鼠标选择   ·   ENTER 确认", 14, COLORS["muted"], (640, 618))
 
@@ -407,7 +442,11 @@ class Stage03Renderer:
         pygame.draw.circle(self.screen, COLORS["text"], (640, 206), 8)
         self._center("ECHO // ZERO", 15, color, (640, 300), True)
         self._center("DEMO CLEAR" if clear else "SYSTEM FAILURE", 46, COLORS["text"], (640, 340), True)
-        subtitle = "逆相反应堆已稳定，两关协议链路全部通过。" if clear else "核心离线。重新开始后可再次构筑。"
+        subtitle = (
+            "逆相反应堆已稳定，两关协议链路全部通过。"
+            if clear
+            else f"核心离线于 {app.level_run.current_definition.title}；根据 Preview 调整三拍后重试。"
+        )
         self._center(subtitle, 18, COLORS["muted"], (640, 400))
         plugins = " / ".join(
             definition.display_name + (f"×{stacks}" if stacks > 1 else "")
@@ -502,7 +541,81 @@ class Stage03Renderer:
     def _global_status(self, app: Any) -> None:
         audio = "静音" if app.ui.muted else "音频"
         motion = "减弱动态" if app.ui.reduced_motion else "完整动态"
+        self._text_at("ESC 退出   ·   TAB 教学下一条   ·   F1 跳过教学", 12, COLORS["muted"], (48, 776))
         self._text_at(f"M {audio}  {app.ui.volume_percent}%   ·   -/+ 音量   ·   F2 {motion}   ·   F3 调试{'开' if app.ui.debug else '关'}", 12, COLORS["muted"], (800, 776))
+
+    def _tutorial_panel(self, app: Any) -> None:
+        step = app.tutorial.current
+        if step is None:
+            return
+        rect = pygame.Rect(48, 626, 576, 126)
+        self._panel(rect, COLORS["warning"], True)
+        level_one = ("timeline", "input", "intent", "preview", "execute")
+        level_two = ("level2_order", "anchor", "phase_switch")
+        group = level_one if step.step_id in level_one else level_two
+        current = group.index(step.step_id) + 1
+        total = len(group)
+        self._text_at(
+            f"GUIDE  {current}/{total}   {step.title}",
+            14,
+            COLORS["warning"],
+            (rect.x + 14, rect.y + 10),
+            True,
+        )
+        self._text_at(step.body, 14, COLORS["text"], (rect.x + 14, rect.y + 39))
+        self._button(TUTORIAL_NEXT_RECT, "下一条  [TAB]", True)
+        self._button(TUTORIAL_SKIP_RECT, "跳过全部  [F1]", False)
+
+    def _tutorial_highlight(self, app: Any) -> None:
+        step = app.tutorial.current
+        if step is None:
+            return
+        rects: list[pygame.Rect] = []
+        if step.target == "slots":
+            rects.append(SLOT_RECTS[0].unionall(SLOT_RECTS[1:]))
+        elif step.target == "intent":
+            rects.append(INTENT_RECT)
+        elif step.target == "preview":
+            rects.append(PREVIEW_RECT)
+        elif step.target == "execute":
+            rects.append(EXECUTE_RECT)
+        elif step.target == "rule":
+            rects.append(TIMELINE_RECT)
+        elif step.target == "anchor":
+            rects.extend(
+                self.cell_rect(node).inflate(-4, -4)
+                for node in app.level_run.encounter.state.rule_nodes
+            )
+        for rect in rects:
+            pygame.draw.rect(
+                self.screen,
+                COLORS["warning"],
+                rect.inflate(8, 8),
+                3,
+                border_radius=12,
+            )
+
+    @staticmethod
+    def _build_relation(plugin: Any, run: Any) -> str:
+        if plugin.requirements:
+            names = [
+                run.plugin_definitions[item].display_name
+                for item in plugin.requirements
+            ]
+            return "联动就绪  " + " + ".join(names)
+        if plugin.plugin_id in {
+            "echo_protocol",
+            "kinetic_amplifier",
+            "emergency_barrier",
+        }:
+            return f"路线核心  ·  {plugin.tags[0]}"
+        active_tags = {
+            tag
+            for definition, _ in run.build_summary
+            for tag in definition.tags
+        }
+        shared = [tag for tag in plugin.tags if tag in active_tags]
+        return "关键词呼应  ·  " + " / ".join(shared) if shared else "独立策略分支"
 
     def _text_at(self, text: str, size: int, color: tuple[int, int, int], pos: tuple[int, int], bold: bool = False) -> None:
         self.screen.blit(self._surface(text, size, color, bold), pos)

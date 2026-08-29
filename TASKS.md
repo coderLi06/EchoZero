@@ -38,9 +38,19 @@
 - [x] P1 Level 2 与 Boss；
 - [ ] P1 onedir 打包；
 - [x] P2 菜单、音效、粒子和可访问设置；
-- [ ] P2 一次轻量局外解锁。
+- [x] P2 一次轻量局外解锁；按冻结范围取消，不进入开发。
 
 ## 开发中
+
+### Stage 07：外部盲测准备、UX 与新玩家引导（代码侧完成，真人盲测待执行）
+
+- [x] P0 Level 1 就地引导；评分：易懂性、演示；验收：三拍槽、填写、Intent、Preview、Execute 一次一个概念，可继续或整局跳过；
+- [x] P0 Level 2 教学；评分：创新可读性；验收：Stable / Reverse 直接展示实际顺序，首次切相与 Phase Anchor 有独立提示；
+- [x] P0 全路径 UX 修复；评分：完成度、稳定性；验收：Shield 常驻、Reward 联动标签、Defeat 定位、失焦取消临时选择、鼠标 Execute 防重复提交；
+- [x] P1 Build 数值复核；评分：策略；验收：三条固定路线继续以 6 / 5 / 8 回合通过 Level 2，无死路线或统一必选项，因此不调整数值；
+- [x] P1 离线场次摘要与盲测模板；评分：可验证性；验收：无联网和隐私数据，记录 Encounter、回合、HP、Build、Retry、Defeat、引导状态及 Level 2 首次失败；
+- [x] P2 输入与可访问性复核；评分：稳定性；验收：保留 Reduce Motion、Mute/Volume、ESC/Restart，新增失焦与快速点击保护；
+- [ ] P0 真人外部盲测；验收：按 `docs/STAGE07_BLIND_TEST.md` 无口头教学执行并回填真实反馈；当前 `External blind test pending.`；
 
 ### Stage 06：竞赛级表现与反馈打磨（已完成实现验收）
 
@@ -101,6 +111,7 @@
 - [x] Stage 04 加权随机奖励池、两次三选一、8 个协议、三条 Build 路线与 47 项自动化测试。
 - [x] Stage 05 逆相反应堆三遭遇、周期规则节点、扫掠体、最终守卫、双关卡 Demo Clear 与 58 项自动化测试。
 - [x] Stage 06 统一 UI、事件动画、机制反馈、20 个合成音效、3 段程序化 BGM、可访问设置、转场与 Demo Clear 打磨，以及 70 项自动化测试。
+- [x] Stage 07 就地新手引导、Level 2 规则教学、Reward 联动可读性、离线场次摘要、盲测记录模板、UX 稳定性保护与 78 项自动化测试；真人外部盲测待执行。
 
 ## Bug
 

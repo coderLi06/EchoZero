@@ -1,6 +1,6 @@
 # ARCHITECTURE——技术架构
 
-> 状态：Stage06 竞赛表现打磨已落地；保持纯领域模拟与 pygame 表现分离。
+> 状态：Stage07 新玩家引导与离线盲测支持已落地；保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
@@ -171,3 +171,13 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - 全局设置使用 `M`、`- / +`、`F2`，Debug 仍默认关闭并仅由 `F3` 开启。
 
 表现依赖保持 `LogicEvent[] → PresentationFrame → Renderer/CueAudio`。命中停顿感是单个事件展示时长变化，不暂停或重复模拟；震动只偏移缓存画布，不改变坐标事实。600 帧无窗口基准平均约 `2.16 ms/frame`，不逐帧读文件、建字体或加载音频。
+
+## 19. Stage07 引导与盲测支持
+
+- `presentation/tutorial.py`：保存一次一个概念的短引导队列、已显示与跳过状态；它只决定当前展示内容，不修改关卡、命令或模拟状态；
+- `presentation/stage03_renderer.py`：按引导目标高亮既有三拍槽、Intent、Preview、Execute、规则与相位锚，保持危险格和角色视觉层级；
+- `infrastructure/session_metrics.py`：仅记录 Seed、Encounter、回合、HP、Build、Retry、Defeat 与引导状态，并覆盖写入本地文本；不联网、不记录身份或设备隐私；
+- `Stage03App`：在正式路径的既有交互点推进引导，在领域回合已结算后消费结果生成场次摘要；窗口失焦只清除未提交的 UI 选择，连续鼠标 Execute 有短防抖；
+- `stage03_smoke.py`：正式 Smoke 路径显式覆盖 Level 1 五个概念、Level 2 顺序/锚点/首次切相以及 Restart。
+
+依赖新增为 `Stage03App → ContextualTutorial / SessionMetrics`。二者均位于领域层之外；Preview 和 Execute 仍唯一依赖 `simulate_turn`，引导、日志和防抖不能改变确定性战斗结果。

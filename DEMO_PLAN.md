@@ -129,3 +129,17 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - 布局：所有主按钮/卡片不小于 48 px，1280×800 下无重叠；Debug 默认关闭；未发现动画阻塞输入或视觉噪声；
 - 性能：600 帧渲染总计约 `1.296 s`，平均 `2.16 ms/frame`，文本缓存稳定在 36 项，满足 60 FPS 预算；
 - 已知 UX 风险：尚未做外部新玩家盲测；Stage07 仅安排盲测、混音和打包机复核，不据此新增玩法。
+
+## 16. Stage07 无口头教学验收路径
+
+正式入口按 `Main Menu → Level 1 五条就地提示 → 两次 Reward → Level 1 Clear → Level 2 顺序/锚点提示 → 首次切相提示 → Final Encounter → Demo Clear → Restart` 验收。每条提示只解释一个当前可见概念，可用 `Tab` 前进、`F1` 跳过；Stable / Reverse 的实际顺序继续由常驻 HUD 和逐拍高亮表达。
+
+自动 Smoke 只验证路径、状态和渲染覆盖，不计为真人盲测。真人测试必须按 `docs/STAGE07_BLIND_TEST.md` 在观察者不提示的条件下执行；当前状态为 `External blind test pending.`。本地 `logs/session_summary.txt` 只辅助定位 Encounter、回合、HP、Build、Retry、Defeat 与引导使用情况，不收集个人信息。
+
+## 17. Stage07 代码侧验收（2026-08-29）
+
+- 固定 Seed `10303` 的正式入口 Smoke 覆盖 Main Menu、Level 1 五条引导、两次 Reward、Level 1 Clear、Level 2 顺序/锚点/首次切相、Final Encounter、Demo Clear 与 Restart；六个 Encounter 全部 Victory，最终 CORE 6/6；
+- 新增测试覆盖引导只显示一次与跳过持久、标准首回合自然推进、离线摘要和 Level 2 首次失败位置、Shield/Build 文案、失焦、快速点击、48 px 点击区、ESC 与 1600×900 / 1920×1080 窗口容纳；全量为 78 项；
+- 三张 1280×800 原始截图复核了 Level 1 引导、Reward 和 Level 2 引导：提示不遮棋盘，黄色目标描边不覆盖危险语义，逆相紫色、相位锚绿色和红色 Intent 同屏可分；
+- 三 Build 仍按 6 / 5 / 8 回合固定路线通过 Level 2，符合回声规划、动能主动、屏障安全的差异，因此本阶段未调整协议、敌人或 Simulator 数值；
+- 1366×768 等低于逻辑画布高度的桌面仍需发布机实测窗口边框占用；本阶段未引入高风险动态缩放。真人外部盲测与真实音箱主观混音仍待执行。
