@@ -11,8 +11,9 @@ EchoZero 是一个使用 Python 开发的 Roguelike 策略游戏 Demo，面向�
 - Stage 00：方案与交互原型已通过；
 - Stage 01：可测试的三槽确定性模拟器与 8×6 pygame 灰盒已完成；
 - Stage 02：测试 Encounter 核心战斗闭环已通过；
-- Stage 03：Level 1 `校准舱` Vertical Slice 已完成实现验收，等待用户确认阶段门。
-- Stage 04：随机奖励、两次三选一与三条 Build 路线已完成实现验收。
+- Stage 03：Level 1 `校准舱` Vertical Slice 已验收通过；
+- Stage 04：随机奖励、两次三选一与三条 Build 路线已验收通过；
+- Stage 05：正式 Level 2 `逆相反应堆`、周期规则节点、扫掠体与 Demo Clear 已完成实现验收。
 
 ## 技术栈
 
@@ -29,7 +30,7 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe main.py
 ```
 
-### Level 1 正式操作
+### 双关卡正式操作
 
 - 从主菜单按 `Enter` 或点击“开始校准”；
 - 鼠标：点击两个命令槽交换顺序；选槽后点相邻空格设置移动、点相邻敌人设置推击、点玩家设置护盾；右键槽位设为待机；
@@ -38,7 +39,7 @@ py -3.14 -m venv .venv
 - 两次奖励界面均可按 `1` / `2` / `3` 或点击卡片选择协议；卡片显示标签与关键规则，顶部显示当前 Build 和本局 Seed；
 - 正常启动每局使用新随机 Seed；测试或演示可用 `main.py --seed 1` 固定奖励序列（DEBUG ONLY）。
 
-第一战初始顺序无法解决突进体。将命令调整为“牵引 → 推击 → 移动”，会在敌人执行意图前击杀它；随后选择协议、验证 Build 对下一组三拍的影响，并在双重锁定高潮中完成 Level 1。
+第一战初始顺序无法解决突进体。将命令调整为“牵引 → 推击 → 移动”，会在敌人执行意图前击杀它；Level 1 完成 Build 后进入 Level 2。逆相规则按 `3→2→1` 执行，绿色相位锚可锁定当前规则，扫掠体会公开多个锁定格，最终击破相位守卫后进入 `DEMO CLEAR`。
 
 ### 自动验证
 
@@ -48,7 +49,7 @@ $env:SDL_VIDEODRIVER = "dummy"
 .\.venv\Scripts\python.exe main.py --smoke-test
 ```
 
-`--smoke-test` 会通过正式 App/LevelRun/Encounter 接口从菜单走到 `LEVEL CLEAR`、验证 Restart，再绘制界面后退出。`src/domain` 不导入 pygame；`preview_turn` 和 `execute_turn` 都调用同一个 `simulate_turn`。
+`--smoke-test` 会通过正式 App/LevelRun/Encounter 接口走完两关、两次奖励、转场、最终战、`DEMO CLEAR` 与 Restart，再绘制界面后退出。`src/domain` 不导入 pygame；`preview_turn` 和 `execute_turn` 都调用同一个 `simulate_turn`。
 
 ## 项目结构
 
@@ -58,7 +59,7 @@ src/domain/           无 pygame 依赖的战斗规则与模拟器
 src/stage03_app.py    正式菜单、关卡、两次奖励与结算控制器
 src/domain/reward.py  可复现的加权候选与合法性过滤
 src/presentation/     pygame 正式渲染和可降级音效
-data/                 Level 1 与协议插件 JSON 配置
+data/                 Level 1、Level 2 与协议插件 JSON 配置
 tests/                领域规则和交互测试
 任务安排/          项目进度材料
 ```

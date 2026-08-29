@@ -21,7 +21,8 @@ def prepare_enemy_turn(state: CombatState) -> tuple[CombatState, tuple[LogicEven
         (entity for entity in working.entities.values() if entity.faction is Faction.ENEMY),
         key=lambda entity: entity.entity_id,
     )
-    for order, enemy in enumerate(enemies, start=1):
+    next_order = 1
+    for enemy in enemies:
         goals = _attack_positions(working, player.pos, enemy.enemy_kind)
         step = _bfs_next_step(working, enemy.pos, goals, enemy.entity_id)
         if step is not None and step != enemy.pos:
@@ -30,20 +31,33 @@ def prepare_enemy_turn(state: CombatState) -> tuple[CombatState, tuple[LogicEven
             events.append(LogicEvent("enemy_moved", 0, enemy.entity_id, from_pos=origin, to_pos=step))
 
         damage = _attack_damage(enemy.enemy_kind, enemy.pos, player.pos)
-        if damage:
-            intents.append(EnemyIntent(enemy.entity_id, player.pos, damage, order))
-            events.append(LogicEvent("intent_locked", 0, enemy.entity_id, player.entity_id, to_pos=player.pos, amount=damage))
+        for target in _intent_targets(working, enemy.enemy_kind, player.pos, damage):
+            intents.append(EnemyIntent(enemy.entity_id, target, damage, next_order))
+            events.append(
+                LogicEvent(
+                    "intent_locked", 0, enemy.entity_id, player.entity_id,
+                    to_pos=target, amount=damage,
+                    detail="sweep" if enemy.enemy_kind in {"sweeper", "warden"} else "",
+                )
+            )
+            next_order += 1
 
     working.enemy_intents = tuple(intents)
     return working, tuple(events)
 
 
 def _attack_positions(state: CombatState, player: GridPos, enemy_kind: str) -> set[GridPos]:
-    if enemy_kind == "sniper":
+    if enemy_kind in {"sniper", "sweeper"}:
         positions = {
             GridPos(x, player.y) for x in range(state.width) if 2 <= abs(x - player.x) <= 4
         } | {
             GridPos(player.x, y) for y in range(state.height) if 2 <= abs(y - player.y) <= 4
+        }
+    elif enemy_kind == "warden":
+        positions = {
+            GridPos(x, player.y) for x in range(state.width) if 1 <= abs(x - player.x) <= 4
+        } | {
+            GridPos(player.x, y) for y in range(state.height) if 1 <= abs(y - player.y) <= 4
         }
     else:
         positions = {player.moved(direction) for direction in Direction}
@@ -60,9 +74,35 @@ def _attack_damage(enemy_kind: str, enemy: GridPos, player: GridPos) -> int:
     aligned = enemy.x == player.x or enemy.y == player.y
     if enemy_kind == "sniper" and aligned and 2 <= distance <= 4:
         return 2
+    if enemy_kind == "sweeper" and aligned and 2 <= distance <= 4:
+        return 1
+    if enemy_kind == "warden" and aligned and 1 <= distance <= 4:
+        return 1
     if enemy_kind == "charger" and aligned and 1 <= distance <= 2:
         return 1
     return 1 if distance == 1 else 0
+
+
+def _intent_targets(
+    state: CombatState, enemy_kind: str, player: GridPos, damage: int
+) -> tuple[GridPos, ...]:
+    if damage <= 0:
+        return ()
+    targets = [player]
+    if enemy_kind in {"sweeper", "warden"}:
+        candidates = [player.moved(Direction.DOWN), player.moved(Direction.UP)]
+        limit = 2 if enemy_kind == "warden" else 1
+        for target in candidates:
+            occupant = state.entity_at(target)
+            if (
+                state.in_bounds(target)
+                and target not in state.walls
+                and (occupant is None or occupant.faction is Faction.PLAYER)
+            ):
+                targets.append(target)
+                if len(targets) == limit + 1:
+                    break
+    return tuple(targets)
 
 
 def _bfs_next_step(state: CombatState, start: GridPos, goals: set[GridPos], actor_id: str) -> GridPos | None:

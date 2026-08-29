@@ -26,11 +26,20 @@ class LevelRun:
         definition: LevelDefinition,
         plugins: dict[str, PluginDefinition],
         seed: int | None = None,
+        initial_player_hp: int | None = None,
+        initial_plugins: tuple[str, ...] = (),
     ) -> None:
         if not definition.encounters:
             raise ValueError("Level requires at least one encounter")
         self.definition = definition
         self.plugin_definitions = dict(plugins)
+        self._initial_player_hp = (
+            definition.player_max_hp if initial_player_hp is None else initial_player_hp
+        )
+        if not 1 <= self._initial_player_hp <= definition.player_max_hp:
+            raise ValueError("Initial player HP must be within the level maximum")
+        self._initial_plugins = tuple(initial_plugins)
+        self._validate_initial_build()
         self.restart(definition.seed if seed is None else seed)
 
     def restart(self, seed: int | None = None) -> None:
@@ -41,9 +50,11 @@ class LevelRun:
         self._rng = random.Random(self.run_seed)
         self._reward_pool = RewardPool(self.plugin_definitions, self._rng)
         self.encounter_index = 0
-        self.player_hp = self.definition.player_max_hp
-        self.player_plugins: list[str] = []
+        self.player_hp = self._initial_player_hp
+        self.player_plugins = list(self._initial_plugins)
         self.player_build: dict[str, int] = {}
+        for plugin_id in self.player_plugins:
+            self.player_build[plugin_id] = self.player_build.get(plugin_id, 0) + 1
         self._reward_choices: tuple[PluginDefinition, ...] = ()
         self.completed_encounters: set[str] = set()
         self.phase = LevelPhase.BATTLE
@@ -156,5 +167,16 @@ class LevelRun:
                     self.plugin_definitions[plugin_id].effect_type
                     for plugin_id in self.player_plugins
                 ),
+                timeline_rules=definition.rule_cycle,
+                rule_nodes=definition.rule_nodes,
             )
         )
+
+    def _validate_initial_build(self) -> None:
+        counts: dict[str, int] = {}
+        for plugin_id in self._initial_plugins:
+            if plugin_id not in self.plugin_definitions:
+                raise ValueError(f"Unknown initial plugin {plugin_id!r}")
+            counts[plugin_id] = counts.get(plugin_id, 0) + 1
+            if counts[plugin_id] > self.plugin_definitions[plugin_id].max_stack:
+                raise ValueError(f"Initial plugin {plugin_id!r} exceeds max stack")

@@ -91,7 +91,7 @@ def test_formal_keyboard_and_mouse_controls_can_clear_level_one() -> None:
     app._handle_click(sniper_cell, 1)
     app._handle_key(pygame.K_RETURN)
 
-    assert app.scene is AppScene.RESULT
+    assert app.scene is AppScene.TRANSITION
     assert app.level_run.phase is LevelPhase.LEVEL_CLEAR
     assert app.level_run.completed_encounters == {
         "sequence_calibration",

@@ -20,7 +20,7 @@ from src.domain import (
     LogicEvent,
     state_fingerprint,
 )
-from src.infrastructure import ContentLoadError, load_level_one
+from src.infrastructure import ContentLoadError, load_demo_content
 from src.presentation.audio import CueAudio
 from src.presentation.stage03_renderer import (
     CELL_SIZE,
@@ -41,6 +41,7 @@ class AppScene(str, Enum):
     MENU = "menu"
     BATTLE = "battle"
     REWARD = "reward"
+    TRANSITION = "transition"
     RESULT = "result"
     ERROR = "error"
 
@@ -76,9 +77,12 @@ class Stage03App:
         self._random_rewards = random_rewards
         self._seed_source = rng or random.Random()
         try:
-            level, plugins = load_level_one(data_root)
-            initial_seed = seed if seed is not None else level.seed
-            self.level_run = LevelRun(level, plugins, initial_seed)
+            levels, plugins = load_demo_content(data_root)
+            self.level_definitions = levels
+            self.plugin_definitions = plugins
+            self.level_index = 0
+            initial_seed = seed if seed is not None else levels[0].seed
+            self.level_run = LevelRun(levels[0], plugins, initial_seed)
         except ContentLoadError as exc:
             self.load_error = str(exc)
             self.scene = AppScene.ERROR
@@ -87,7 +91,7 @@ class Stage03App:
         pygame.init()
         try:
             self.screen = pygame.display.set_mode(WINDOW_SIZE)
-            pygame.display.set_caption("EchoZero | Level 1 · 校准舱")
+            pygame.display.set_caption("EchoZero | 双关卡 Demo")
             self.renderer = Stage03Renderer(self.screen)
             self.audio.initialise()
             if self.smoke_test and self.load_error is None:
@@ -126,6 +130,12 @@ class Stage03App:
             return True
         if self.scene is AppScene.RESULT:
             if key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_r):
+                self._start_level()
+            return True
+        if self.scene is AppScene.TRANSITION:
+            if key in (pygame.K_RETURN, pygame.K_SPACE):
+                self._start_next_level()
+            elif key == pygame.K_r:
                 self._start_level()
             return True
         if self.scene is AppScene.REWARD:
@@ -171,6 +181,8 @@ class Stage03App:
             self._start_level()
         elif self.scene is AppScene.RESULT and RESULT_RESTART_RECT.collidepoint(pos):
             self._start_level()
+        elif self.scene is AppScene.TRANSITION and RESULT_RESTART_RECT.collidepoint(pos):
+            self._start_next_level()
         elif self.scene is AppScene.REWARD:
             for index, rect in enumerate(REWARD_RECTS[: len(self.level_run.reward_choices)]):
                 if rect.collidepoint(pos):
@@ -207,7 +219,10 @@ class Stage03App:
             run_seed = self._seed_source.getrandbits(63)
         else:
             run_seed = self.level_run.definition.seed
-        self.level_run.restart(run_seed)
+        self.level_index = 0
+        self.level_run = LevelRun(
+            self.level_definitions[0], self.plugin_definitions, run_seed
+        )
         self.scene = AppScene.BATTLE
         self.ui = Stage03UiState(feedback="先观察红色锁定格，再调整三拍顺序。")
         self._seed_opening_commands()
@@ -230,11 +245,15 @@ class Stage03App:
                 Command("player", CommandType.MOVE, 2, Direction.RIGHT),
                 Command("player", CommandType.WAIT, 3),
             ]
-        else:
+        elif encounter_id == "dual_lock_climax":
             commands = [
                 Command("player", CommandType.PUSH, 1, Direction.RIGHT),
                 Command("player", CommandType.MOVE, 2, Direction.DOWN),
                 Command("player", CommandType.PULL, 3, target_entity_id="charger_prime"),
+            ]
+        else:
+            commands = [
+                Command("player", CommandType.WAIT, slot) for slot in range(1, 4)
             ]
         for command in commands:
             self.level_run.encounter.set_command(command)
@@ -328,10 +347,14 @@ class Stage03App:
         if self.level_run.phase is LevelPhase.REWARD:
             self.scene = AppScene.REWARD
             self.ui.reward_focus = 0
-        elif self.level_run.phase in {LevelPhase.LEVEL_CLEAR, LevelPhase.DEFEAT}:
+        elif self.level_run.phase is LevelPhase.DEFEAT:
             self.scene = AppScene.RESULT
-            if self.level_run.phase is LevelPhase.LEVEL_CLEAR:
-                self.audio.play("victory")
+        elif self.level_run.phase is LevelPhase.LEVEL_CLEAR:
+            if self.level_index + 1 < len(self.level_definitions):
+                self.scene = AppScene.TRANSITION
+            else:
+                self.scene = AppScene.RESULT
+            self.audio.play("victory")
         elif self.level_run.encounter_index != old_index:
             self._seed_opening_commands()
             self.events += self.level_run.encounter.preparation_events
@@ -349,6 +372,28 @@ class Stage03App:
         self.ui.selected_slot = None
         self.ui.feedback = f"{plugin.display_name} 已接入：{plugin.description}"
         self._seed_opening_commands()
+        self.events = self.level_run.encounter.preparation_events
+        self.animation_started_ms = pygame.time.get_ticks()
+        self.audio.play("plugin")
+
+    def _start_next_level(self) -> None:
+        if self.level_index + 1 >= len(self.level_definitions):
+            return
+        inherited_hp = self.level_run.player_hp
+        inherited_plugins = tuple(self.level_run.player_plugins)
+        run_seed = self.level_run.run_seed
+        self.level_index += 1
+        self.level_run = LevelRun(
+            self.level_definitions[self.level_index],
+            self.plugin_definitions,
+            run_seed,
+            initial_player_hp=inherited_hp,
+            initial_plugins=inherited_plugins,
+        )
+        self.scene = AppScene.BATTLE
+        self.ui = Stage03UiState(
+            feedback="逆相反应堆在线：先看规则方向，再编排三拍。"
+        )
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self.audio.play("plugin")

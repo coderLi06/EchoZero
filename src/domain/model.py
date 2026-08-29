@@ -43,6 +43,11 @@ class CommandType(str, Enum):
     SHIELD = "shield"
 
 
+class TimelineRule(str, Enum):
+    STABLE = "stable"
+    REVERSE = "reverse"
+
+
 @dataclass
 class EntityState:
     entity_id: str
@@ -99,18 +104,30 @@ class CombatState:
     turn: int = 1
     player_plugins: tuple[str, ...] = ()
     player_plugin_effects: tuple[str, ...] = ()
+    timeline_rules: tuple[TimelineRule, ...] = ()
+    timeline_rule_index: int = 0
+    rule_nodes: frozenset[GridPos] = frozenset()
 
     def clone(self) -> "CombatState":
         return CombatState(
-            self.width,
-            self.height,
-            {key: entity.clone() for key, entity in self.entities.items()},
-            set(self.walls),
-            tuple(self.enemy_intents),
-            self.turn,
-            tuple(self.player_plugins),
-            tuple(self.player_plugin_effects),
+            width=self.width,
+            height=self.height,
+            entities={key: entity.clone() for key, entity in self.entities.items()},
+            walls=set(self.walls),
+            enemy_intents=tuple(self.enemy_intents),
+            turn=self.turn,
+            player_plugins=tuple(self.player_plugins),
+            player_plugin_effects=tuple(self.player_plugin_effects),
+            timeline_rules=tuple(self.timeline_rules),
+            timeline_rule_index=self.timeline_rule_index,
+            rule_nodes=frozenset(self.rule_nodes),
         )
+
+    @property
+    def active_timeline_rule(self) -> TimelineRule:
+        if not self.timeline_rules:
+            return TimelineRule.STABLE
+        return self.timeline_rules[self.timeline_rule_index % len(self.timeline_rules)]
 
     def in_bounds(self, pos: GridPos) -> bool:
         return 0 <= pos.x < self.width and 0 <= pos.y < self.height

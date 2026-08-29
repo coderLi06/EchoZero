@@ -6,7 +6,7 @@ from typing import Any
 
 import pygame
 
-from src.domain import Command, CommandType, Faction, GridPos, LevelPhase, LogicEvent
+from src.domain import Command, CommandType, Faction, GridPos, LevelPhase, LogicEvent, TimelineRule
 
 WINDOW_SIZE = (1280, 800)
 CELL_SIZE = 72
@@ -55,6 +55,9 @@ EVENT_LABELS = {
     "move_blocked": "路径阻断",
     "push_blocked": "碰撞发生",
     "plugin_triggered": "协议触发",
+    "rule_triggered": "逆相改写",
+    "rule_changed": "规则切换",
+    "rule_held": "相位锁定",
 }
 
 
@@ -64,7 +67,7 @@ class Stage03Renderer:
         self.fonts: dict[tuple[int, bool], pygame.font.Font] = {}
 
     def draw(self, app: Any) -> None:
-        self._background()
+        self._background(app)
         scene = app.scene.value
         if scene == "menu":
             self._menu()
@@ -72,27 +75,31 @@ class Stage03Renderer:
             self._battle(app)
         elif scene == "reward":
             self._reward(app)
+        elif scene == "transition":
+            self._transition(app)
         elif scene == "result":
             self._result(app)
         else:
             self._error(app.load_error or "未知资源错误")
 
-    def _background(self) -> None:
-        self.screen.fill(COLORS["background"])
+    def _background(self, app: Any) -> None:
+        reactor = getattr(app, "level_index", 0) == 1
+        self.screen.fill((14, 6, 24) if reactor else COLORS["background"])
+        line_color = (38, 17, 55) if reactor else (11, 20, 32)
         for x in range(0, WINDOW_SIZE[0], 64):
-            pygame.draw.line(self.screen, (11, 20, 32), (x, 0), (x, WINDOW_SIZE[1]))
+            pygame.draw.line(self.screen, line_color, (x, 0), (x, WINDOW_SIZE[1]))
         for y in range(0, WINDOW_SIZE[1], 64):
-            pygame.draw.line(self.screen, (11, 20, 32), (0, y), (WINDOW_SIZE[0], y))
+            pygame.draw.line(self.screen, line_color, (0, y), (WINDOW_SIZE[0], y))
 
     def _menu(self) -> None:
         self._diamond((640, 222), 82, COLORS["primary"], 4)
         self._diamond((640, 222), 52, COLORS["violet"], 2)
         pygame.draw.circle(self.screen, COLORS["text"], (640, 222), 10)
         self._center("ECHO // ZERO", 54, COLORS["text"], (640, 344), True)
-        self._center("CALIBRATION CHAMBER", 18, COLORS["primary"], (640, 398), True)
+        self._center("CALIBRATION // INVERSE REACTOR", 18, COLORS["primary"], (640, 398), True)
         self._center("编排三拍 · 看见因果 · 改写结果", 22, COLORS["muted"], (640, 452))
         self._button(MENU_START_RECT, "开始校准  [ENTER]", True)
-        self._center("三段短遭遇  /  一次协议构筑  /  一场双重锁定终检", 15, COLORS["muted"], (640, 674))
+        self._center("双关卡  /  六场短遭遇  /  Build 继承  /  逆相终局", 15, COLORS["muted"], (640, 674))
 
     def _battle(self, app: Any) -> None:
         run = app.level_run
@@ -100,7 +107,8 @@ class Stage03Renderer:
         definition = run.current_definition
         current, total = run.progress
         self._text_at("ECHO // ZERO", 22, COLORS["text"], (48, 28), True)
-        self._text_at(f"LEVEL 01  {run.definition.display_name}", 14, COLORS["primary"], (48, 61), True)
+        level_color = COLORS["violet"] if app.level_index == 1 else COLORS["primary"]
+        self._text_at(f"LEVEL {app.level_index + 1:02}  {run.definition.display_name}", 14, level_color, (48, 61), True)
         self._progress(current, total)
         self._text_at(definition.title, 26, COLORS["text"], (48, 105), True)
         self._text_at(definition.objective, 16, COLORS["muted"], (48, 139))
@@ -134,6 +142,12 @@ class Stage03Renderer:
             rect = self.cell_rect(wall).inflate(-12, -12)
             pygame.draw.polygon(self.screen, COLORS["wall"], [(rect.left, rect.centery), (rect.centerx, rect.top), (rect.right, rect.centery), (rect.centerx, rect.bottom)])
             pygame.draw.line(self.screen, COLORS["muted"], (rect.left + 8, rect.centery), (rect.right - 8, rect.centery), 2)
+        for node in state.rule_nodes:
+            rect = self.cell_rect(node).inflate(-10, -10)
+            pygame.draw.rect(self.screen, (21, 77, 66), rect, border_radius=12)
+            pygame.draw.rect(self.screen, COLORS["success"], rect, 3, border_radius=12)
+            pygame.draw.circle(self.screen, COLORS["success"], rect.center, 9, 2)
+            self._center("锚", 12, COLORS["text"], rect.center, True)
         for intent in state.enemy_intents:
             target = self.cell_rect(intent.target_pos).inflate(-6, -6)
             pygame.draw.rect(self.screen, COLORS["danger_dark"], target, border_radius=10)
@@ -169,6 +183,11 @@ class Stage03Renderer:
             pygame.draw.circle(self.screen, COLORS["danger"], center, 8)
             pygame.draw.line(self.screen, COLORS["violet"], (center[0] - 30, center[1]), (center[0] + 30, center[1]), 2)
             pygame.draw.line(self.screen, COLORS["violet"], (center[0], center[1] - 30), (center[0], center[1] + 30), 2)
+        elif entity.enemy_kind in {"sweeper", "warden"}:
+            color = COLORS["violet"] if entity.enemy_kind == "sweeper" else COLORS["warning"]
+            self._diamond(center, 27, color, 4)
+            pygame.draw.line(self.screen, color, (center[0] - 29, center[1]), (center[0] + 29, center[1]), 4)
+            pygame.draw.circle(self.screen, COLORS["danger"], center, 7)
         else:
             points = [(center[0] + 25, center[1]), (center[0] + 12, center[1] + 22), (center[0] - 12, center[1] + 22), (center[0] - 25, center[1]), (center[0] - 12, center[1] - 22), (center[0] + 12, center[1] - 22)]
             pygame.draw.polygon(self.screen, COLORS["warning"], points, 4)
@@ -193,8 +212,15 @@ class Stage03Renderer:
         self._panel(intent_rect, COLORS["danger"] if encounter.state.enemy_intents else COLORS["border"])
         self._text_at("公开意图", 15, COLORS["danger"], (intent_rect.x + 16, intent_rect.y + 12), True)
         intents = encounter.state.enemy_intents
-        label = "当前没有可执行的锁定攻击" if not intents else "  ·  ".join(f"#{item.order} {item.actor_id} → ({item.target_pos.x},{item.target_pos.y}) / {item.damage}伤害" for item in intents)
+        label = "当前没有可执行的锁定攻击" if not intents else "  ·  ".join(
+            f"#{item.order} → ({item.target_pos.x},{item.target_pos.y}) / {item.damage}"
+            for item in intents
+        )
         self._text_at(label, 14, COLORS["text"], (intent_rect.x + 16, intent_rect.y + 42))
+        rule = encounter.state.active_timeline_rule
+        if encounter.state.timeline_rules:
+            rule_text = "逆相  3→2→1" if rule is TimelineRule.REVERSE else "稳定  1→2→3"
+            self._text_at(f"反应堆规则：{rule_text}", 14, COLORS["warning"], (PANEL_X, 244), True)
         self._text_at("三拍命令链  ·  两槽交换  ·  WASD移动 / E牵引 / Q护盾", 14, COLORS["text"], (PANEL_X, 266), True)
         for index, (command, rect) in enumerate(zip(encounter.commands, SLOT_RECTS, strict=True)):
             selected = app.ui.selected_slot == index
@@ -205,7 +231,7 @@ class Stage03Renderer:
             self._text_at(app.command_label(command), 17, COLORS["text"], (rect.x + 70, rect.y + 8), True)
             self._text_at(app.preview_label(index + 1), 13, COLORS["muted"], (rect.x + 70, rect.y + 36))
         self._button(EXECUTE_RECT, "确认执行  [ENTER]", True)
-        self._button(RESTART_RECT, "重启关卡  [R]", False)
+        self._button(RESTART_RECT, "重启 Demo  [R]", False)
         preview = app.preview.state
         preview_player = preview.entities.get("player")
         enemy_count = sum(entity.faction is Faction.ENEMY for entity in preview.entities.values())
@@ -252,16 +278,28 @@ class Stage03Renderer:
         clear = app.level_run.phase is LevelPhase.LEVEL_CLEAR
         color = COLORS["success"] if clear else COLORS["danger"]
         self._diamond((640, 206), 70, color, 4)
-        self._center("LEVEL CLEAR" if clear else "CALIBRATION FAILED", 46, COLORS["text"], (640, 340), True)
-        subtitle = "校准舱已稳定，协议链路保持在线。" if clear else "核心离线。重启关卡后可重新编排因果。"
+        self._center("DEMO CLEAR" if clear else "SYSTEM FAILURE", 46, COLORS["text"], (640, 340), True)
+        subtitle = "逆相反应堆已稳定，两关协议链路全部通过。" if clear else "核心离线。重新开始后可再次构筑。"
         self._center(subtitle, 18, COLORS["muted"], (640, 400))
         plugins = " / ".join(
             definition.display_name + (f"×{stacks}" if stacks > 1 else "")
             for definition, stacks in app.level_run.build_summary
         ) or "无"
         self._center(f"完成遭遇 {len(app.level_run.completed_encounters)}/3   ·   Build {plugins}", 16, color, (640, 456), True)
-        self._button(RESULT_RESTART_RECT, "重新开始 Level 1  [ENTER / R]", True)
+        self._button(RESULT_RESTART_RECT, "重新开始完整 Demo  [ENTER / R]", True)
         self._center("ESC 退出", 13, COLORS["muted"], (640, 686))
+
+    def _transition(self, app: Any) -> None:
+        self._diamond((640, 190), 64, COLORS["violet"], 4)
+        self._center("LEVEL 01 CLEAR", 18, COLORS["success"], (640, 292), True)
+        self._center("逆相反应堆", 44, COLORS["text"], (640, 354), True)
+        self._center("新规则：时间轴将在 1→2→3 与 3→2→1 之间切换", 18, COLORS["warning"], (640, 414), True)
+        build = " / ".join(
+            definition.display_name + (f"×{stacks}" if stacks > 1 else "")
+            for definition, stacks in app.level_run.build_summary
+        )
+        self._center(f"Build 继承：{build}", 15, COLORS["violet"], (640, 462), True)
+        self._button(RESULT_RESTART_RECT, "进入 Level 2  [ENTER]", True)
 
     def _error(self, message: str) -> None:
         self._center("CONTENT LOAD FAILED", 32, COLORS["danger"], (640, 240), True)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .model import GridPos
+from .model import GridPos, TimelineRule
 
 
 @dataclass(frozen=True)
@@ -41,6 +41,8 @@ class EncounterDefinition:
     reward_pool: tuple[str, ...] = ()
     reward_count: int = 3
     is_climax: bool = False
+    rule_cycle: tuple[TimelineRule, ...] = ()
+    rule_nodes: frozenset[GridPos] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -52,3 +54,4 @@ class LevelDefinition:
     height: int
     player_max_hp: int
     encounters: tuple[EncounterDefinition, ...]
+    theme: str = "calibration"

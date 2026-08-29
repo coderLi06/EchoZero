@@ -12,7 +12,7 @@ from src.domain.content import (
     LevelDefinition,
     PluginDefinition,
 )
-from src.domain.model import GridPos
+from src.domain.model import GridPos, TimelineRule
 
 KNOWN_EFFECT_TYPES = {
     "repeat_first_on_empty_third",
@@ -24,7 +24,7 @@ KNOWN_EFFECT_TYPES = {
     "pull_cancels_intent",
     "shield_primes_push",
 }
-KNOWN_ENEMY_KINDS = {"guard", "charger", "sniper"}
+KNOWN_ENEMY_KINDS = {"guard", "charger", "sniper", "sweeper", "warden"}
 
 
 class ContentLoadError(ValueError):
@@ -38,6 +38,20 @@ def load_level_one(data_root: Path | None = None) -> tuple[LevelDefinition, dict
     plugins = _load_plugins(plugins_path)
     level = _load_level(level_path, plugins)
     return level, plugins
+
+
+def load_demo_content(
+    data_root: Path | None = None,
+) -> tuple[tuple[LevelDefinition, ...], dict[str, PluginDefinition]]:
+    root = data_root or Path(__file__).resolve().parents[2] / "data"
+    plugins = _load_plugins(root / "plugins" / "protocols.json")
+    levels = (
+        _load_level(root / "levels" / "level_1.json", plugins),
+        _load_level(root / "levels" / "level_2.json", plugins),
+    )
+    if levels[0].level_id == levels[1].level_id:
+        raise ContentLoadError("Level ids must be unique")
+    return levels, plugins
 
 
 def _read_json(path: Path) -> Any:
@@ -125,30 +139,48 @@ def _load_level(path: Path, plugins: dict[str, PluginDefinition]) -> LevelDefini
         climax = item.get("is_climax", False)
         if not isinstance(climax, bool):
             raise ContentLoadError(f"{path}: {field}.is_climax must be a boolean")
+        rule_cycle = tuple(
+            _timeline_rule(value, path, f"{field}.rule_cycle")
+            for value in _list(item.get("rule_cycle", []), path, f"{field}.rule_cycle")
+        )
+        rule_nodes_raw = _list(item.get("rule_nodes", []), path, f"{field}.rule_nodes")
+        rule_nodes = frozenset(
+            _grid_pos(value, path, f"{field}.rule_nodes", width, height)
+            for value in rule_nodes_raw
+        )
+        if len(rule_nodes) != len(rule_nodes_raw):
+            raise ContentLoadError(f"{path}: {field}.rule_nodes must not contain duplicates")
+        if rule_nodes & walls:
+            raise ContentLoadError(f"{path}: {field}.rule_nodes overlap walls")
+        if rule_nodes and not rule_cycle:
+            raise ContentLoadError(f"{path}: {field}.rule_nodes require rule_cycle")
         encounters.append(
             EncounterDefinition(
-                encounter_id,
-                _text(_required(item, "title", path, field), path, f"{field}.title"),
-                _text(_required(item, "objective", path, field), path, f"{field}.objective"),
-                _text(_required(item, "hint", path, field), path, f"{field}.hint"),
-                player_spawn,
-                enemies,
-                walls,
-                reward_pool,
-                reward_count,
-                climax,
+                encounter_id=encounter_id,
+                title=_text(_required(item, "title", path, field), path, f"{field}.title"),
+                objective=_text(_required(item, "objective", path, field), path, f"{field}.objective"),
+                hint=_text(_required(item, "hint", path, field), path, f"{field}.hint"),
+                player_spawn=player_spawn,
+                enemies=enemies,
+                walls=walls,
+                reward_pool=reward_pool,
+                reward_count=reward_count,
+                is_climax=climax,
+                rule_cycle=rule_cycle,
+                rule_nodes=rule_nodes,
             )
         )
     if not encounters:
         raise ContentLoadError(f"{path}: encounters must not be empty")
     return LevelDefinition(
-        _text(_required(payload, "id", path), path, "id"),
-        _text(_required(payload, "name", path), path, "name"),
-        _integer(_required(payload, "seed", path), path, "seed"),
-        width,
-        height,
-        _positive_int(_required(payload, "player_max_hp", path), path, "player_max_hp"),
-        tuple(encounters),
+        level_id=_text(_required(payload, "id", path), path, "id"),
+        display_name=_text(_required(payload, "name", path), path, "name"),
+        seed=_integer(_required(payload, "seed", path), path, "seed"),
+        width=width,
+        height=height,
+        player_max_hp=_positive_int(_required(payload, "player_max_hp", path), path, "player_max_hp"),
+        encounters=tuple(encounters),
+        theme=_text(payload.get("theme", "calibration"), path, "theme"),
     )
 
 
@@ -229,6 +261,14 @@ def _positive_int(value: Any, path: Path, field: str) -> int:
     if result <= 0:
         raise ContentLoadError(f"{path}: {field} must be positive")
     return result
+
+
+def _timeline_rule(value: Any, path: Path, field: str) -> TimelineRule:
+    text = _text(value, path, field)
+    try:
+        return TimelineRule(text)
+    except ValueError as exc:
+        raise ContentLoadError(f"{path}: {field} unknown value {text!r}") from exc
 
 
 def _grid_pos(value: Any, path: Path, field: str, width: int, height: int) -> GridPos:

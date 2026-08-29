@@ -6,7 +6,17 @@ import hashlib
 import json
 from collections.abc import Iterable
 
-from .model import Command, CommandType, CombatState, Direction, EntityState, GridPos, LogicEvent, SimulationResult
+from .model import (
+    Command,
+    CommandType,
+    CombatState,
+    Direction,
+    EntityState,
+    GridPos,
+    LogicEvent,
+    SimulationResult,
+    TimelineRule,
+)
 
 SLOT_COUNT = 3
 PUSH_DAMAGE = 1
@@ -21,9 +31,12 @@ def simulate_turn(state: CombatState, commands: Iterable[Command]) -> Simulation
     normalised = _normalise_slots(commands)
     normalised, plugin_events = _apply_protocol_plugins(working, normalised)
     events.extend(plugin_events)
+    normalised, rule_events = _apply_timeline_rule(working, normalised)
+    events.extend(rule_events)
     for tick, command in enumerate(normalised, start=1):
         _apply_command(working, command, tick, events)
     _apply_enemy_intents(working, events)
+    _advance_timeline_rule(working, events)
     working.turn += 1
     return SimulationResult(working, tuple(events))
 
@@ -51,6 +64,9 @@ def state_fingerprint(state: CombatState) -> str:
         ],
         "plugins": list(state.player_plugins),
         "plugin_effects": list(state.player_plugin_effects),
+        "timeline_rules": [rule.value for rule in state.timeline_rules],
+        "timeline_rule_index": state.timeline_rule_index,
+        "rule_nodes": [[pos.x, pos.y] for pos in sorted(state.rule_nodes)],
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -245,3 +261,38 @@ def _apply_protocol_plugins(
                     LogicEvent("shielded", 3, actor.entity_id, amount=1, detail="resonance_buffer")
                 )
     return tuple(transformed), tuple(events)
+
+
+def _apply_timeline_rule(
+    state: CombatState, commands: tuple[Command, ...]
+) -> tuple[tuple[Command, ...], tuple[LogicEvent, ...]]:
+    if state.active_timeline_rule is not TimelineRule.REVERSE:
+        return commands, ()
+    reversed_commands = tuple(
+        command.in_slot(index)
+        for index, command in enumerate(reversed(commands), start=1)
+    )
+    return reversed_commands, (
+        LogicEvent("rule_triggered", 0, "reactor", detail=TimelineRule.REVERSE.value),
+    )
+
+
+def _advance_timeline_rule(state: CombatState, events: list[LogicEvent]) -> None:
+    if len(state.timeline_rules) <= 1:
+        return
+    tick = SLOT_COUNT + len(state.enemy_intents) + 1
+    player = state.entities.get("player")
+    if player is not None and player.pos in state.rule_nodes:
+        events.append(
+            LogicEvent(
+                "rule_held", tick, player.entity_id, to_pos=player.pos,
+                detail=state.active_timeline_rule.value,
+            )
+        )
+        return
+    state.timeline_rule_index = (state.timeline_rule_index + 1) % len(state.timeline_rules)
+    events.append(
+        LogicEvent(
+            "rule_changed", tick, "reactor", detail=state.active_timeline_rule.value
+        )
+    )

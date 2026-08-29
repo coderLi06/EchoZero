@@ -11,6 +11,7 @@ from .model import (
     GridPos,
     LogicEvent,
     SimulationResult,
+    TimelineRule,
 )
 from .simulation import execute_turn, preview_turn, simulate_turn, state_fingerprint
 from .ai import prepare_enemy_turn
@@ -21,7 +22,7 @@ from .reward import RewardPool
 
 __all__ = [
     "Command", "CommandType", "CombatState", "Direction", "EnemyIntent",
-    "EntityState", "Faction", "GridPos", "LogicEvent", "SimulationResult",
+    "EntityState", "Faction", "GridPos", "LogicEvent", "SimulationResult", "TimelineRule",
     "execute_turn", "preview_turn", "simulate_turn", "state_fingerprint",
     "prepare_enemy_turn", "Encounter", "EncounterOutcome", "TurnResolution",
     "EncounterDefinition", "EnemySpawn", "LevelDefinition", "PluginDefinition",

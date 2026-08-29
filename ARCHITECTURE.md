@@ -1,6 +1,6 @@
 # ARCHITECTURE——技术架构
 
-> 状态：Stage04 随机奖励与 Build 构筑已落地；保持纯领域模拟与 pygame 表现分离。
+> 状态：Stage05 双关卡完整 Demo 已落地；保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
@@ -150,3 +150,14 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - Level 1 保持三个 Encounter，不新增敌人或关卡；第一战后仍是冻结的回声/动能/屏障三选一，第二战后从合法池随机三选一深化 Build。
 
 依赖增加为 `LevelRun → RewardPool → random.Random`，随机不进入模拟器，因而不会污染预演/执行一致性。
+
+## 17. Stage05 实际落地
+
+- `CombatState` 增加类型化时间轴规则、规则周期索引和相位锚位置；clone 与 fingerprint 必须包含全部字段；
+- `Simulator` 在协议变换后执行统一的时间轴变换，并在回合收尾依据玩家是否占据相位锚决定保持或切换；
+- `AI` 继续输出 `EnemyIntent`，扫掠体和相位守卫只是一次生成多个确定目标，不增加第二套攻击结算；
+- `LevelRun` 接受显式的初始生命和插件序列，用同一关卡逻辑承载 Level 1 与 Level 2；
+- `Stage03App` 只负责两个 `LevelDefinition` 之间的轻量转场与状态传递，不判断 Level 2 战斗规则；
+- 配置新增 `rule_cycle`、`rule_nodes` 与第二个关卡 JSON，并保持启动时严格校验。
+
+正式状态流为 `MENU → Level 1 BATTLE/REWARD → TRANSITION → Level 2 BATTLE → DEMO CLEAR/DEFEAT`。Level 2 没有新增 Reward System 或协议；所有逆相、节点和多格意图事件仍由领域层输出，Renderer 只消费状态和事件。

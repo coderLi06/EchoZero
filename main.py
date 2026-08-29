@@ -8,7 +8,7 @@ from src.stage03_app import Stage03App
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="EchoZero Level 1 Vertical Slice")
+    parser = argparse.ArgumentParser(description="EchoZero two-level competition demo")
     parser.add_argument("--smoke-test", action="store_true", help="自动通关正式流程并绘制后退出")
     parser.add_argument("--seed", type=int, help="DEBUG ONLY：使用固定奖励 Seed")
     args = parser.parse_args()
