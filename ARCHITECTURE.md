@@ -1,6 +1,6 @@
 # ARCHITECTURE——技术架构
 
-> 状态：Stage05 双关卡完整 Demo 已落地；保持纯领域模拟与 pygame 表现分离。
+> 状态：Stage06 竞赛表现打磨已落地；保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
@@ -161,3 +161,13 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - 配置新增 `rule_cycle`、`rule_nodes` 与第二个关卡 JSON，并保持启动时严格校验。
 
 正式状态流为 `MENU → Level 1 BATTLE/REWARD → TRANSITION → Level 2 BATTLE → DEMO CLEAR/DEFEAT`。Level 2 没有新增 Reward System 或协议；所有逆相、节点和多格意图事件仍由领域层输出，Renderer 只消费状态和事件。
+
+## 18. Stage06 表现层实际落地
+
+- `presentation/effects.py`：把 LogicEvent 映射为短时序、减弱动态、关键震动、音效 cue 与协议可见文案；全部函数只读事件，不持有或修改战斗状态；
+- `presentation/stage03_renderer.py`：复用单个离屏画布、字体和文本 Surface，按事件插值位移并绘制命中、护盾、死亡、规则与 Build 反馈；Level 1/2 使用青色/紫色语义，但危险仍用固定红色并辅以斜线与文字；
+- `presentation/audio.py`：启动时一次性合成并缓存 17 个短 cue，提供统一主音量和静音；设备不可用时清空声音并静默降级；
+- `Stage03App`：只保存选中态、音量、减弱动态、动画起点与已播放事件索引；按键和鼠标仍只翻译为领域命令，表现更新不进入 Simulator；
+- 全局设置使用 `M`、`- / +`、`F2`，Debug 仍默认关闭并仅由 `F3` 开启。
+
+表现依赖保持 `LogicEvent[] → PresentationFrame → Renderer/CueAudio`。命中停顿感是单个事件展示时长变化，不暂停或重复模拟；震动只偏移缓存画布，不改变坐标事实。600 帧无窗口基准平均约 `2.16 ms/frame`，不逐帧读文件、建字体或加载音频。

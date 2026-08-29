@@ -14,6 +14,7 @@ EchoZero 是一个使用 Python 开发的 Roguelike 策略游戏 Demo，面向�
 - Stage 03：Level 1 `校准舱` Vertical Slice 已验收通过；
 - Stage 04：随机奖励、两次三选一与三条 Build 路线已验收通过；
 - Stage 05：正式 Level 2 `逆相反应堆`、周期规则节点、扫掠体与 Demo Clear 已完成实现验收。
+- Stage 06：竞赛级 UI、事件动画、音频、转场、可访问设置与最终反馈打磨已完成实现验收。
 
 ## 技术栈
 
@@ -36,6 +37,7 @@ py -3.14 -m venv .venv
 - 鼠标：点击两个命令槽交换顺序；选槽后点相邻空格设置移动、点相邻敌人设置推击、点玩家设置护盾；右键槽位设为待机；
 - 键盘：`1` / `2` / `3` 选槽，`WASD` 设置移动，`E` 牵引最近直线目标，`Q` 设置护盾；
 - `Enter` 或空格执行，`R` 重启 Level 1，`F3` 切换调试信息，`Esc` 退出；
+- 全局可按 `M` 静音，`-` / `+` 调整主音量，`F2` 切换减弱动态；设置会跨 Restart 与 Level 1→2 转场保留；
 - 两次奖励界面均可按 `1` / `2` / `3` 或点击卡片选择协议；卡片显示标签与关键规则，顶部显示当前 Build 和本局 Seed；
 - 正常启动每局使用新随机 Seed；测试或演示可用 `main.py --seed 1` 固定奖励序列（DEBUG ONLY）。
 
@@ -58,7 +60,7 @@ main.py              程序入口
 src/domain/           无 pygame 依赖的战斗规则与模拟器
 src/stage03_app.py    正式菜单、关卡、两次奖励与结算控制器
 src/domain/reward.py  可复现的加权候选与合法性过滤
-src/presentation/     pygame 正式渲染和可降级音效
+src/presentation/     pygame 正式渲染、事件动效语义和可降级合成音效
 data/                 Level 1、Level 2 与协议插件 JSON 配置
 tests/                领域规则和交互测试
 任务安排/          项目进度材料

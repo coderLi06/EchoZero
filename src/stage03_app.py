@@ -22,6 +22,7 @@ from src.domain import (
 )
 from src.infrastructure import ContentLoadError, load_demo_content
 from src.presentation.audio import CueAudio
+from src.presentation.effects import PresentationFrame, cue_for_event, presentation_frame
 from src.presentation.stage03_renderer import (
     CELL_SIZE,
     EXECUTE_RECT,
@@ -51,6 +52,9 @@ class Stage03UiState:
     selected_slot: int | None = None
     reward_focus: int = 0
     debug: bool = False
+    reduced_motion: bool = False
+    muted: bool = False
+    volume_percent: int = 65
     verification_ok: bool | None = None
     feedback: str = "选择命令槽，再点击战场目标。"
 
@@ -72,6 +76,7 @@ class Stage03App:
         self.ui = Stage03UiState()
         self.events: tuple[LogicEvent, ...] = ()
         self.animation_started_ms = 0
+        self._last_audio_event_index: int | None = None
         self.load_error: str | None = None
         self._fixed_seed = seed
         self._random_rewards = random_rewards
@@ -107,6 +112,9 @@ class Stage03App:
                         running = self._handle_key(event.key)
                     elif event.type == pygame.MOUSEBUTTONDOWN:
                         self._handle_click(event.pos, event.button)
+                    elif event.type == pygame.MOUSEMOTION:
+                        self._handle_motion(event.pos)
+                self._update_presentation_audio()
                 self.renderer.draw(self)
                 pygame.display.flip()
                 frames += 1
@@ -124,6 +132,27 @@ class Stage03App:
     def _handle_key(self, key: int) -> bool:
         if key == pygame.K_ESCAPE:
             return False
+        if key == pygame.K_m:
+            self.ui.muted = not self.ui.muted
+            self.audio.set_muted(self.ui.muted)
+            self.ui.feedback = "音频已关闭。" if self.ui.muted else "音频已开启。"
+            self.audio.play("click")
+            return True
+        if key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+            self.ui.volume_percent = max(0, self.ui.volume_percent - 10)
+            self.audio.set_volume(self.ui.volume_percent / 100)
+            self.ui.feedback = f"主音量 {self.ui.volume_percent}%。"
+            return True
+        if key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
+            self.ui.volume_percent = min(100, self.ui.volume_percent + 10)
+            self.audio.set_volume(self.ui.volume_percent / 100)
+            self.ui.feedback = f"主音量 {self.ui.volume_percent}%。"
+            self.audio.play("click")
+            return True
+        if key == pygame.K_F2:
+            self.ui.reduced_motion = not self.ui.reduced_motion
+            self.ui.feedback = "减弱动态已开启。" if self.ui.reduced_motion else "完整动态已开启。"
+            return True
         if self.scene is AppScene.MENU:
             if key in (pygame.K_RETURN, pygame.K_SPACE):
                 self._start_level()
@@ -174,6 +203,14 @@ class Stage03App:
             self._assign_nearest_pull()
         return True
 
+    def _handle_motion(self, pos: tuple[int, int]) -> None:
+        if self.scene is not AppScene.REWARD:
+            return
+        for index, rect in enumerate(REWARD_RECTS[: len(self.level_run.reward_choices)]):
+            if rect.collidepoint(pos):
+                self.ui.reward_focus = index
+                return
+
     def _handle_click(self, pos: tuple[int, int], button: int) -> None:
         if button != 1 and not (self.scene is AppScene.BATTLE and button == 3):
             return
@@ -213,6 +250,9 @@ class Stage03App:
     def _start_level(self) -> None:
         if self.load_error is not None:
             return
+        muted = self.ui.muted
+        reduced_motion = self.ui.reduced_motion
+        volume_percent = self.ui.volume_percent
         if self._fixed_seed is not None:
             run_seed = self._fixed_seed
         elif self._random_rewards:
@@ -224,10 +264,16 @@ class Stage03App:
             self.level_definitions[0], self.plugin_definitions, run_seed
         )
         self.scene = AppScene.BATTLE
-        self.ui = Stage03UiState(feedback="先观察红色锁定格，再调整三拍顺序。")
+        self.ui = Stage03UiState(
+            feedback="先观察红色锁定格，再调整三拍顺序。",
+            muted=muted,
+            reduced_motion=reduced_motion,
+            volume_percent=volume_percent,
+        )
         self._seed_opening_commands()
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
+        self._last_audio_event_index = None
         self.audio.play("click")
 
     def _seed_opening_commands(self) -> None:
@@ -338,12 +384,9 @@ class Stage03App:
         self.ui.verification_ok = state_fingerprint(resolution.result.state) == expected
         self.events = resolution.result.events + resolution.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
+        self._last_audio_event_index = None
         self.ui.selected_slot = None
-        self.audio.play("execute")
-        if any(event.kind == "plugin_triggered" for event in self.events):
-            self.audio.play("plugin")
-        elif any(event.kind == "died" for event in self.events):
-            self.audio.play("death")
+        self.audio.play("confirm")
         if self.level_run.phase is LevelPhase.REWARD:
             self.scene = AppScene.REWARD
             self.ui.reward_focus = 0
@@ -354,7 +397,7 @@ class Stage03App:
                 self.scene = AppScene.TRANSITION
             else:
                 self.scene = AppScene.RESULT
-            self.audio.play("victory")
+            self.audio.play("level_clear" if self.level_index == 0 else "demo_clear")
         elif self.level_run.encounter_index != old_index:
             self._seed_opening_commands()
             self.events += self.level_run.encounter.preparation_events
@@ -374,7 +417,8 @@ class Stage03App:
         self._seed_opening_commands()
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
-        self.audio.play("plugin")
+        self._last_audio_event_index = None
+        self.audio.play("reward")
 
     def _start_next_level(self) -> None:
         if self.level_index + 1 >= len(self.level_definitions):
@@ -392,18 +436,36 @@ class Stage03App:
         )
         self.scene = AppScene.BATTLE
         self.ui = Stage03UiState(
-            feedback="逆相反应堆在线：先看规则方向，再编排三拍。"
+            feedback="逆相反应堆在线：先看规则方向，再编排三拍。",
+            muted=self.ui.muted,
+            reduced_motion=self.ui.reduced_motion,
+            volume_percent=self.ui.volume_percent,
         )
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
-        self.audio.play("plugin")
+        self._last_audio_event_index = None
+        self.audio.play("inverse")
 
     def active_event(self) -> LogicEvent | None:
-        visible = [event for event in self.events if event.kind != "waited"]
-        if not visible:
-            return None
-        index = (pygame.time.get_ticks() - self.animation_started_ms) // 230
-        return visible[index] if 0 <= index < len(visible) else None
+        return self.presentation.event
+
+    @property
+    def presentation(self) -> PresentationFrame:
+        elapsed = pygame.time.get_ticks() - self.animation_started_ms
+        return presentation_frame(self.events, elapsed, self.ui.reduced_motion)
+
+    def _update_presentation_audio(self) -> None:
+        frame = self.presentation
+        if (
+            frame.event is None
+            or frame.event_index is None
+            or frame.event_index == self._last_audio_event_index
+        ):
+            return
+        self._last_audio_event_index = frame.event_index
+        cue = cue_for_event(frame.event)
+        if cue is not None:
+            self.audio.play(cue)
 
     def preview_label(self, slot: int) -> str:
         labels = [EVENT_LABELS.get(event.kind, event.kind) for event in self.preview.events if event.tick == slot]
