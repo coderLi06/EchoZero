@@ -4,25 +4,78 @@
       "id": "echo_protocol",
       "name": "回声协议",
       "description": "若第 3 拍为空，自动重放第 1 拍。用空槽换取一次因果回响。",
-      "effect_type": "repeat_first_on_empty_third"
+      "effect_type": "repeat_first_on_empty_third",
+      "tags": ["回声", "编排"],
+      "weight": 4,
+      "max_stack": 1
     },
     {
       "id": "kinetic_amplifier",
       "name": "动能增幅",
       "description": "推击额外造成 1 点伤害。更快击破目标，但不会增加位移。",
-      "effect_type": "push_damage_plus_one"
+      "effect_type": "push_damage_plus_one",
+      "tags": ["动能", "伤害"],
+      "weight": 4,
+      "max_stack": 2
     },
     {
       "id": "vector_extender",
       "name": "矢量延伸",
       "description": "牵引距离由 2 格扩展至 3 格，创造更早的位移机会。",
-      "effect_type": "pull_range_plus_one"
+      "effect_type": "pull_range_plus_one",
+      "tags": ["牵引", "控场"],
+      "weight": 1,
+      "max_stack": 1
     },
     {
       "id": "emergency_barrier",
       "name": "应急屏障",
       "description": "护盾命令获得 2 层护盾而不是 1 层，允许承受一次重击。",
-      "effect_type": "shield_plus_one"
+      "effect_type": "shield_plus_one",
+      "tags": ["屏障", "生存"],
+      "weight": 2,
+      "max_stack": 1
+    },
+    {
+      "id": "resonance_buffer",
+      "name": "共振缓冲",
+      "description": "回声重放触发时获得 1 层护盾。空出第 3 拍可同时换取行动与防护。",
+      "effect_type": "echo_grants_shield",
+      "tags": ["回声", "联动"],
+      "weight": 8,
+      "requirements": ["echo_protocol"],
+      "conflicts": ["collision_overload"],
+      "max_stack": 1
+    },
+    {
+      "id": "collision_overload",
+      "name": "碰撞过载",
+      "description": "推击受阻时，碰撞伤害额外 +1。主动把敌人压向墙面。",
+      "effect_type": "collision_damage_plus_one",
+      "tags": ["动能", "墙面"],
+      "weight": 8,
+      "requirements": ["kinetic_amplifier"],
+      "conflicts": ["resonance_buffer"],
+      "max_stack": 1
+    },
+    {
+      "id": "tractor_lock",
+      "name": "牵引锁断",
+      "description": "成功牵引会取消该敌人本回合已锁定的意图，以伤害速度换安全控场。",
+      "effect_type": "pull_cancels_intent",
+      "tags": ["牵引", "打断"],
+      "weight": 5,
+      "max_stack": 1
+    },
+    {
+      "id": "aegis_counter",
+      "name": "盾势反推",
+      "description": "同一回合先使用护盾，再使用推击时伤害 +1；要求重新编排出手顺序。",
+      "effect_type": "shield_primes_push",
+      "tags": ["屏障", "编排"],
+      "weight": 5,
+      "requirements": ["emergency_barrier"],
+      "max_stack": 1
     }
   ]
 }

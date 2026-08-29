@@ -77,6 +77,8 @@ def test_echo_choice_changes_second_encounter_and_advances_to_climax() -> None:
     preview = run.encounter.preview()
     assert "guard_beta" not in preview.state.entities
     run.confirm_turn()
+    assert run.phase is LevelPhase.REWARD
+    run.choose_reward(run.reward_choices[0].plugin_id)
     assert run.progress == (3, 3)
     assert run.phase is LevelPhase.BATTLE
     assert set(run.encounter.state.entities) == {"player", "charger_prime", "sniper_prime"}

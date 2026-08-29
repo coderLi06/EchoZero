@@ -184,7 +184,10 @@ class Stage03Renderer:
         player = encounter.state.entities.get("player")
         hp = "--" if player is None else f"{player.hp}/{player.max_hp}"
         self._text_at(f"CORE  {hp}", 18, COLORS["text"], (PANEL_X, 108), True)
-        plugin_names = [run.plugin_definitions[item].display_name for item in run.player_plugins]
+        plugin_names = [
+            definition.display_name + (f"×{stacks}" if stacks > 1 else "")
+            for definition, stacks in run.build_summary
+        ]
         self._text_at("协议  " + (" / ".join(plugin_names) if plugin_names else "尚未安装"), 14, COLORS["violet"], (PANEL_X + 180, 111), True)
         intent_rect = pygame.Rect(PANEL_X, 146, 568, 92)
         self._panel(intent_rect, COLORS["danger"] if encounter.state.enemy_intents else COLORS["border"])
@@ -212,7 +215,7 @@ class Stage03Renderer:
         self._text_at(app.ui.feedback, 13, COLORS["muted"], (PANEL_X, 702))
         self._text_at("F3 调试" + ("：开" if app.ui.debug else "：关"), 12, COLORS["muted"], (1150, 756))
         if app.ui.debug:
-            self._text_at(f"seed={run.definition.seed}  turn={encounter.state.turn}  events={len(app.events)}  preview={'PASS' if app.ui.verification_ok is not False else 'FAIL'}", 12, COLORS["muted"], (PANEL_X, 756))
+            self._text_at(f"seed={run.run_seed}  turn={encounter.state.turn}  events={len(app.events)}  preview={'PASS' if app.ui.verification_ok is not False else 'FAIL'}", 12, COLORS["muted"], (PANEL_X, 756))
 
     def _draw_event_strip(self, app: Any) -> None:
         rect = pygame.Rect(48, 626, 576, 126)
@@ -230,12 +233,18 @@ class Stage03Renderer:
         self._center("PROTOCOL ACQUIRED", 16, COLORS["primary"], (640, 84), True)
         self._center("选择一次规则改写", 38, COLORS["text"], (640, 134), True)
         self._center("不是加分词条：你的下一组三拍会产生不同结果", 17, COLORS["muted"], (640, 184))
+        build = " / ".join(
+            definition.display_name + (f"×{stacks}" if stacks > 1 else "")
+            for definition, stacks in run.build_summary
+        ) or "尚未安装"
+        self._center(f"当前 Build：{build}   ·   Seed {run.run_seed}", 14, COLORS["violet"], (640, 214), True)
         for index, (plugin, rect) in enumerate(zip(run.reward_choices, REWARD_RECTS, strict=True)):
             self._panel(rect, COLORS["primary"] if index == app.ui.reward_focus else COLORS["border"], index == app.ui.reward_focus)
             self._center(f"0{index + 1}", 14, COLORS["primary"], (rect.centerx, rect.y + 32), True)
             self._protocol_icon(plugin.plugin_id, (rect.centerx, rect.y + 92))
             self._center(plugin.display_name, 24, COLORS["text"], (rect.centerx, rect.y + 154), True)
-            self._wrapped(plugin.description, 15, COLORS["muted"], pygame.Rect(rect.x + 30, rect.y + 184, rect.width - 60, 72), 24)
+            self._center(" · ".join(plugin.tags), 13, COLORS["violet"], (rect.centerx, rect.y + 180), True)
+            self._wrapped(plugin.description, 15, COLORS["muted"], pygame.Rect(rect.x + 30, rect.y + 202, rect.width - 60, 78), 24)
             self._center(f"按 {index + 1} 安装", 15, COLORS["primary"], (rect.centerx, rect.bottom - 32), True)
         self._center("选择后立即进入下一次校准", 14, COLORS["muted"], (640, 618))
 
@@ -246,7 +255,10 @@ class Stage03Renderer:
         self._center("LEVEL CLEAR" if clear else "CALIBRATION FAILED", 46, COLORS["text"], (640, 340), True)
         subtitle = "校准舱已稳定，协议链路保持在线。" if clear else "核心离线。重启关卡后可重新编排因果。"
         self._center(subtitle, 18, COLORS["muted"], (640, 400))
-        plugins = " / ".join(app.level_run.plugin_definitions[item].display_name for item in app.level_run.player_plugins) or "无"
+        plugins = " / ".join(
+            definition.display_name + (f"×{stacks}" if stacks > 1 else "")
+            for definition, stacks in app.level_run.build_summary
+        ) or "无"
         self._center(f"完成遭遇 {len(app.level_run.completed_encounters)}/3   ·   Build {plugins}", 16, color, (640, 456), True)
         self._button(RESULT_RESTART_RECT, "重新开始 Level 1  [ENTER / R]", True)
         self._center("ESC 退出", 13, COLORS["muted"], (640, 686))

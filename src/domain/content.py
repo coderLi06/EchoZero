@@ -13,6 +13,11 @@ class PluginDefinition:
     display_name: str
     description: str
     effect_type: str
+    tags: tuple[str, ...] = ()
+    weight: int = 1
+    requirements: tuple[str, ...] = ()
+    conflicts: tuple[str, ...] = ()
+    max_stack: int = 1
 
 
 @dataclass(frozen=True)
@@ -33,7 +38,8 @@ class EncounterDefinition:
     player_spawn: GridPos
     enemies: tuple[EnemySpawn, ...]
     walls: frozenset[GridPos]
-    reward_choices: tuple[str, ...] = ()
+    reward_pool: tuple[str, ...] = ()
+    reward_count: int = 3
     is_climax: bool = False
 
 

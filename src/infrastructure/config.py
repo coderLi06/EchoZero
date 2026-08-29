@@ -19,6 +19,10 @@ KNOWN_EFFECT_TYPES = {
     "push_damage_plus_one",
     "pull_range_plus_one",
     "shield_plus_one",
+    "echo_grants_shield",
+    "collision_damage_plus_one",
+    "pull_cancels_intent",
+    "shield_primes_push",
 }
 KNOWN_ENEMY_KINDS = {"guard", "charger", "sniper"}
 
@@ -63,9 +67,25 @@ def _load_plugins(path: Path) -> dict[str, PluginDefinition]:
             _text(_required(item, "name", path, field), path, f"{field}.name"),
             _text(_required(item, "description", path, field), path, f"{field}.description"),
             effect_type,
+            _text_tuple(item.get("tags", []), path, f"{field}.tags"),
+            _positive_int(item.get("weight", 1), path, f"{field}.weight"),
+            _text_tuple(item.get("requirements", []), path, f"{field}.requirements"),
+            _text_tuple(item.get("conflicts", []), path, f"{field}.conflicts"),
+            _positive_int(item.get("max_stack", 1), path, f"{field}.max_stack"),
         )
     if not plugins:
         raise ContentLoadError(f"{path}: plugins must not be empty")
+    for plugin in plugins.values():
+        references = set(plugin.requirements) | set(plugin.conflicts)
+        unknown = references - plugins.keys()
+        if unknown:
+            raise ContentLoadError(
+                f"{path}: plugin {plugin.plugin_id!r} references unknown plugin {sorted(unknown)[0]!r}"
+            )
+        if plugin.plugin_id in references:
+            raise ContentLoadError(f"{path}: plugin {plugin.plugin_id!r} cannot reference itself")
+        if set(plugin.requirements) & set(plugin.conflicts):
+            raise ContentLoadError(f"{path}: plugin {plugin.plugin_id!r} has conflicting requirements")
     return plugins
 
 
@@ -94,13 +114,14 @@ def _load_level(path: Path, plugins: dict[str, PluginDefinition]) -> LevelDefini
         occupied = {enemy.pos for enemy in enemies}
         if player_spawn in walls or player_spawn in occupied or walls & occupied:
             raise ContentLoadError(f"{path}: {field} has overlapping player, enemy or wall positions")
-        reward_choices = tuple(
-            _text(value, path, f"{field}.reward_choices")
-            for value in _list(item.get("reward_choices", []), path, f"{field}.reward_choices")
-        )
-        for plugin_id in reward_choices:
+        reward_source = item.get("reward_pool", item.get("reward_choices", []))
+        reward_pool = _text_tuple(reward_source, path, f"{field}.reward_pool")
+        reward_count = _positive_int(item.get("reward_count", 3), path, f"{field}.reward_count")
+        for plugin_id in reward_pool:
             if plugin_id not in plugins:
                 raise ContentLoadError(f"{path}: {field} references unknown plugin {plugin_id!r}")
+        if reward_pool and reward_count > len(reward_pool):
+            raise ContentLoadError(f"{path}: {field}.reward_count exceeds reward_pool size")
         climax = item.get("is_climax", False)
         if not isinstance(climax, bool):
             raise ContentLoadError(f"{path}: {field}.is_climax must be a boolean")
@@ -113,7 +134,8 @@ def _load_level(path: Path, plugins: dict[str, PluginDefinition]) -> LevelDefini
                 player_spawn,
                 enemies,
                 walls,
-                reward_choices,
+                reward_pool,
+                reward_count,
                 climax,
             )
         )
@@ -187,6 +209,13 @@ def _text(value: Any, path: Path, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ContentLoadError(f"{path}: {field} must be non-empty text")
     return value
+
+
+def _text_tuple(value: Any, path: Path, field: str) -> tuple[str, ...]:
+    result = tuple(_text(item, path, field) for item in _list(value, path, field))
+    if len(result) != len(set(result)):
+        raise ContentLoadError(f"{path}: {field} must not contain duplicates")
+    return result
 
 
 def _integer(value: Any, path: Path, field: str) -> int:

@@ -83,7 +83,7 @@ def _apply_command(state: CombatState, command: Command, tick: int, events: list
     elif command.command_type is CommandType.PULL:
         _pull(state, actor, command.target_entity_id, tick, events)
     elif command.command_type is CommandType.SHIELD:
-        amount = 2 if "shield_plus_one" in state.player_plugin_effects else 1
+        amount = 1 + state.player_plugin_effects.count("shield_plus_one")
         actor.shield += amount
         detail = "emergency_barrier" if amount > 1 else ""
         events.append(LogicEvent("shielded", tick, actor.entity_id, amount=amount, detail=detail))
@@ -108,7 +108,18 @@ def _push(state: CombatState, actor: EntityState, direction: Direction | None, t
     if target is None:
         events.append(LogicEvent("push_missed", tick, actor.entity_id, detail=direction.name.lower()))
         return
-    damage = PUSH_DAMAGE + (1 if "push_damage_plus_one" in state.player_plugin_effects else 0)
+    damage = PUSH_DAMAGE + state.player_plugin_effects.count("push_damage_plus_one")
+    if (
+        "shield_primes_push" in state.player_plugin_effects
+        and any(
+            event.kind == "shielded"
+            and event.actor_id == actor.entity_id
+            and event.tick < tick
+            for event in events
+        )
+    ):
+        damage += 1
+        events.append(LogicEvent("plugin_triggered", tick, actor.entity_id, detail="aegis_counter"))
     detail = "kinetic_amplifier" if damage > PUSH_DAMAGE else "push"
     _damage(state, target, damage, tick, actor.entity_id, events, detail)
     if target.entity_id not in state.entities:
@@ -116,7 +127,10 @@ def _push(state: CombatState, actor: EntityState, direction: Direction | None, t
     destination = target.pos.moved(direction)
     if _blocked(state, destination):
         events.append(LogicEvent("push_blocked", tick, actor.entity_id, target.entity_id, target.pos, destination))
-        _damage(state, target, COLLISION_DAMAGE, tick, actor.entity_id, events, "collision")
+        collision_damage = COLLISION_DAMAGE + state.player_plugin_effects.count(
+            "collision_damage_plus_one"
+        )
+        _damage(state, target, collision_damage, tick, actor.entity_id, events, "collision")
         return
     origin = target.pos
     target.pos = destination
@@ -143,6 +157,15 @@ def _pull(state: CombatState, actor: EntityState, target_entity_id: str | None, 
     origin = target.pos
     target.pos = destination
     events.append(LogicEvent("pulled", tick, actor.entity_id, target.entity_id, origin, destination))
+    if (
+        "pull_cancels_intent" in state.player_plugin_effects
+        and any(intent.actor_id == target.entity_id for intent in state.enemy_intents)
+    ):
+        state.enemy_intents = tuple(
+            intent for intent in state.enemy_intents if intent.actor_id != target.entity_id
+        )
+        events.append(LogicEvent("plugin_triggered", tick, actor.entity_id, target.entity_id, detail="tractor_lock"))
+        events.append(LogicEvent("intent_cancelled", tick, target.entity_id, detail="tractor_lock"))
 
 
 def _apply_enemy_intents(state: CombatState, events: list[LogicEvent]) -> None:
@@ -214,4 +237,11 @@ def _apply_protocol_plugins(
                 detail="echo_protocol",
             )
         )
+        if "echo_grants_shield" in state.player_plugin_effects:
+            actor = state.entities.get(transformed[0].actor_id)
+            if actor is not None:
+                actor.shield += 1
+                events.append(
+                    LogicEvent("shielded", 3, actor.entity_id, amount=1, detail="resonance_buffer")
+                )
     return tuple(transformed), tuple(events)

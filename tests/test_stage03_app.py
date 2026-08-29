@@ -1,4 +1,5 @@
 from pathlib import Path
+import random
 
 import pygame
 
@@ -57,6 +58,8 @@ def test_formal_keyboard_and_mouse_controls_can_clear_level_one() -> None:
 
     app._handle_key(pygame.K_1)
     app._handle_key(pygame.K_RETURN)
+    assert app.scene is AppScene.REWARD
+    app._handle_key(pygame.K_1)
     assert app.level_run.progress == (3, 3)
 
     for index in (2, 0, 1, 2):
@@ -102,3 +105,16 @@ def test_stage03_app_reports_missing_content_without_crashing(tmp_path: Path) ->
     assert app.scene is AppScene.ERROR
     assert app.load_error is not None
     assert "Missing content file" in app.load_error
+
+
+def test_normal_restart_uses_new_seed_but_debug_seed_is_fixed() -> None:
+    app = Stage03App(random_rewards=True, rng=random.Random(9))
+    app._start_level()
+    first_seed = app.level_run.run_seed
+    app._start_level()
+    assert app.level_run.run_seed != first_seed
+
+    debug = Stage03App(seed=77, random_rewards=True, rng=random.Random(9))
+    debug._start_level()
+    debug._start_level()
+    assert debug.level_run.run_seed == 77

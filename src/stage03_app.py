@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -54,7 +55,14 @@ class Stage03UiState:
 
 
 class Stage03App:
-    def __init__(self, smoke_test: bool = False, data_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        smoke_test: bool = False,
+        data_root: Path | None = None,
+        seed: int | None = None,
+        random_rewards: bool = False,
+        rng: random.Random | None = None,
+    ) -> None:
         self.smoke_test = smoke_test
         self.screen: pygame.Surface | None = None
         self.renderer: Stage03Renderer | None = None
@@ -64,9 +72,13 @@ class Stage03App:
         self.events: tuple[LogicEvent, ...] = ()
         self.animation_started_ms = 0
         self.load_error: str | None = None
+        self._fixed_seed = seed
+        self._random_rewards = random_rewards
+        self._seed_source = rng or random.Random()
         try:
             level, plugins = load_level_one(data_root)
-            self.level_run = LevelRun(level, plugins)
+            initial_seed = seed if seed is not None else level.seed
+            self.level_run = LevelRun(level, plugins, initial_seed)
         except ContentLoadError as exc:
             self.load_error = str(exc)
             self.scene = AppScene.ERROR
@@ -189,7 +201,13 @@ class Stage03App:
     def _start_level(self) -> None:
         if self.load_error is not None:
             return
-        self.level_run.restart()
+        if self._fixed_seed is not None:
+            run_seed = self._fixed_seed
+        elif self._random_rewards:
+            run_seed = self._seed_source.getrandbits(63)
+        else:
+            run_seed = self.level_run.definition.seed
+        self.level_run.restart(run_seed)
         self.scene = AppScene.BATTLE
         self.ui = Stage03UiState(feedback="先观察红色锁定格，再调整三拍顺序。")
         self._seed_opening_commands()

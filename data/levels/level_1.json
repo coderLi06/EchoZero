@@ -16,7 +16,8 @@
       "enemies": [
         {"id": "charger_alpha", "name": "突进体 α", "kind": "charger", "pos": [4, 3], "hp": 1}
       ],
-      "reward_choices": ["echo_protocol", "kinetic_amplifier", "emergency_barrier"]
+      "reward_pool": ["echo_protocol", "kinetic_amplifier", "emergency_barrier"],
+      "reward_count": 3
     },
     {
       "id": "protocol_trial",
@@ -27,7 +28,9 @@
       "walls": [[5, 2], [5, 4]],
       "enemies": [
         {"id": "guard_beta", "name": "校准卫兵 β", "kind": "guard", "pos": [2, 3], "hp": 2}
-      ]
+      ],
+      "reward_pool": ["resonance_buffer", "collision_overload", "tractor_lock", "aegis_counter", "kinetic_amplifier", "emergency_barrier", "echo_protocol", "vector_extender"],
+      "reward_count": 3
     },
     {
       "id": "dual_lock_climax",

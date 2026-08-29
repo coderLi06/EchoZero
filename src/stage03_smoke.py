@@ -20,8 +20,15 @@ def run_flow_smoke(app: Stage03App) -> None:
     )
     if app.scene.value != "reward":
         raise RuntimeError("Stage03 smoke did not reach reward")
-    app._choose_reward(0)
+    echo_index = next(
+        index for index, item in enumerate(app.level_run.reward_choices)
+        if item.plugin_id == "echo_protocol"
+    )
+    app._choose_reward(echo_index)
     app._execute()
+    if app.scene.value != "reward":
+        raise RuntimeError("Stage04 smoke did not reach second reward")
+    app._choose_reward(0)
     if app.level_run.encounter_index != 2:
         raise RuntimeError("Stage03 smoke did not advance to climax")
     scripted = [

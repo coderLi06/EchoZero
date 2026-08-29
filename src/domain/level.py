@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import random
 from enum import Enum
 
 from .content import EncounterDefinition, LevelDefinition, PluginDefinition
 from .encounter import Encounter, EncounterOutcome, TurnResolution
 from .model import CombatState, EntityState, Faction
+from .reward import RewardPool
 
 
 class LevelPhase(str, Enum):
@@ -23,17 +25,26 @@ class LevelRun:
         self,
         definition: LevelDefinition,
         plugins: dict[str, PluginDefinition],
+        seed: int | None = None,
     ) -> None:
         if not definition.encounters:
             raise ValueError("Level requires at least one encounter")
         self.definition = definition
         self.plugin_definitions = dict(plugins)
-        self.restart()
+        self.restart(definition.seed if seed is None else seed)
 
-    def restart(self) -> None:
+    def restart(self, seed: int | None = None) -> None:
+        if seed is not None:
+            self.run_seed = seed
+        elif not hasattr(self, "run_seed"):
+            self.run_seed = self.definition.seed
+        self._rng = random.Random(self.run_seed)
+        self._reward_pool = RewardPool(self.plugin_definitions, self._rng)
         self.encounter_index = 0
         self.player_hp = self.definition.player_max_hp
         self.player_plugins: list[str] = []
+        self.player_build: dict[str, int] = {}
+        self._reward_choices: tuple[PluginDefinition, ...] = ()
         self.completed_encounters: set[str] = set()
         self.phase = LevelPhase.BATTLE
         self.encounter = self._create_encounter(self.current_definition)
@@ -50,9 +61,14 @@ class LevelRun:
     def reward_choices(self) -> tuple[PluginDefinition, ...]:
         if self.phase is not LevelPhase.REWARD:
             return ()
+        return self._reward_choices
+
+    @property
+    def build_summary(self) -> tuple[tuple[PluginDefinition, int], ...]:
         return tuple(
-            self.plugin_definitions[plugin_id]
-            for plugin_id in self.current_definition.reward_choices
+            (definition, self.player_build[plugin_id])
+            for plugin_id, definition in self.plugin_definitions.items()
+            if self.player_build.get(plugin_id, 0) > 0
         )
 
     def confirm_turn(self) -> TurnResolution:
@@ -68,12 +84,15 @@ class LevelRun:
     def choose_reward(self, plugin_id: str) -> None:
         if self.phase is not LevelPhase.REWARD:
             raise RuntimeError("Reward choice is not active")
-        offered = self.current_definition.reward_choices
+        offered = {item.plugin_id for item in self._reward_choices}
         if plugin_id not in offered:
             raise ValueError(f"Plugin {plugin_id!r} is not offered")
-        if plugin_id in self.player_plugins:
-            raise ValueError(f"Plugin {plugin_id!r} was already selected")
+        definition = self.plugin_definitions[plugin_id]
+        if self.player_build.get(plugin_id, 0) >= definition.max_stack:
+            raise ValueError(f"Plugin {plugin_id!r} reached max stack")
         self.player_plugins.append(plugin_id)
+        self.player_build[plugin_id] = self.player_build.get(plugin_id, 0) + 1
+        self._reward_choices = ()
         self._start_next_encounter()
 
     def _settle_victory(self) -> None:
@@ -87,8 +106,13 @@ class LevelRun:
         self.completed_encounters.add(encounter_id)
         if self.encounter_index == len(self.definition.encounters) - 1:
             self.phase = LevelPhase.LEVEL_CLEAR
-        elif self.current_definition.reward_choices:
+        elif self.current_definition.reward_pool:
             self.phase = LevelPhase.REWARD
+            self._reward_choices = self._reward_pool.candidates(
+                self.current_definition.reward_pool,
+                self.current_definition.reward_count,
+                self.player_build,
+            )
         else:
             self._start_next_encounter()
 

@@ -1,6 +1,6 @@
 # ARCHITECTURE——技术架构
 
-> 状态：Stage03 Level 1 Vertical Slice 已落地；保持纯领域模拟与 pygame 表现分离。
+> 状态：Stage04 随机奖励与 Build 构筑已落地；保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
@@ -139,3 +139,14 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - `stage03_smoke.py`：通过正式 App/LevelRun API 走通菜单到 Level Clear，再验证干净重启。
 
 依赖保持 `pygame → Stage03App → LevelRun → Encounter → Simulator`。配置层构造类型化定义；表现层不会修改伤害、位置、胜负或协议规则。
+
+## 16. Stage04 实际落地
+
+- `domain/reward.py`：接收注入的 `random.Random`，对配置池做 requirements、conflicts、max_stack 过滤，再执行无放回加权抽取；
+- `domain/level.py`：持有 `run_seed`、Build 层数和一次生成后保持不变的候选，选择后才应用并传入下一场 Encounter；Restart 同时重建 RNG 与清空 Build；
+- `domain/simulation.py`：8 个有限效果继续在同一模拟器中生效，新增回声护盾、碰撞过载、牵引断锁和盾后反推；
+- `infrastructure/config.py`：校验 tags、weight、requirements、conflicts、max_stack、reward_pool 与 reward_count，包括重复、坏引用和自引用；
+- `stage03_app.py`：正式运行每局生成新 Seed，`--seed` 为 DEBUG ONLY 固定入口；Reward 场景只提交选择，不直接修改战斗属性；
+- Level 1 保持三个 Encounter，不新增敌人或关卡；第一战后仍是冻结的回声/动能/屏障三选一，第二战后从合法池随机三选一深化 Build。
+
+依赖增加为 `LevelRun → RewardPool → random.Random`，随机不进入模拟器，因而不会污染预演/执行一致性。
