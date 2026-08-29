@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 def run_flow_smoke(app: Stage03App) -> None:
     """Traverse both formal levels, all rewards, Demo Clear and clean restart."""
+    if app.renderer is not None:
+        app.renderer.draw(app)
     app._start_level()
     app._script_turn(
         Command("player", CommandType.PULL, 1, target_entity_id="charger_alpha"),
@@ -20,6 +22,8 @@ def run_flow_smoke(app: Stage03App) -> None:
     )
     if app.scene.value != "reward":
         raise RuntimeError("Stage03 smoke did not reach reward")
+    if app.renderer is not None:
+        app.renderer.draw(app)
     echo_index = next(
         index for index, item in enumerate(app.level_run.reward_choices)
         if item.plugin_id == "echo_protocol"
@@ -28,6 +32,8 @@ def run_flow_smoke(app: Stage03App) -> None:
     app._execute()
     if app.scene.value != "reward":
         raise RuntimeError("Stage04 smoke did not reach second reward")
+    if app.renderer is not None:
+        app.renderer.draw(app)
     app._choose_reward(0)
     if app.level_run.encounter_index != 2:
         raise RuntimeError("Stage03 smoke did not advance to climax")
@@ -105,6 +111,8 @@ def run_flow_smoke(app: Stage03App) -> None:
     ]
     for commands in level_two:
         app._script_turn(*commands)
+        if app.renderer is not None:
+            app.renderer.draw(app)
     if app.level_index != 1 or app.level_run.phase is not LevelPhase.LEVEL_CLEAR:
         raise RuntimeError("Stage05 smoke did not reach Demo Clear")
     if app.scene.value != "result":
@@ -114,3 +122,5 @@ def run_flow_smoke(app: Stage03App) -> None:
     app._start_level()
     if app.level_index != 0 or app.level_run.progress != (1, 3) or app.level_run.player_plugins:
         raise RuntimeError("Stage05 smoke restart did not restore a clean demo")
+    if app.renderer is not None:
+        app.renderer.draw(app)

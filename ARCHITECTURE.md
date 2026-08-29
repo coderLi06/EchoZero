@@ -166,7 +166,7 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 
 - `presentation/effects.py`：把 LogicEvent 映射为短时序、减弱动态、关键震动、音效 cue 与协议可见文案；全部函数只读事件，不持有或修改战斗状态；
 - `presentation/stage03_renderer.py`：复用单个离屏画布、字体和文本 Surface，按事件插值位移并绘制命中、护盾、死亡、规则与 Build 反馈；Level 1/2 使用青色/紫色语义，但危险仍用固定红色并辅以斜线与文字；
-- `presentation/audio.py`：启动时一次性合成并缓存 17 个短 cue，提供统一主音量和静音；设备不可用时清空声音并静默降级；
+- `presentation/audio.py`：启动时一次性合成并缓存 20 个短 cue 与 Menu/Battle/Final 三段循环 BGM，使用保留声道、统一主音量和静音；设备不可用时清空声音并静默降级；
 - `Stage03App`：只保存选中态、音量、减弱动态、动画起点与已播放事件索引；按键和鼠标仍只翻译为领域命令，表现更新不进入 Simulator；
 - 全局设置使用 `M`、`- / +`、`F2`，Debug 仍默认关闭并仅由 `F3` 开启。
 

@@ -99,6 +99,7 @@ class Stage03App:
             pygame.display.set_caption("EchoZero | 双关卡 Demo")
             self.renderer = Stage03Renderer(self.screen)
             self.audio.initialise()
+            self.audio.play_music("menu")
             if self.smoke_test and self.load_error is None:
                 self._run_flow_smoke()
             clock = pygame.time.Clock()
@@ -172,8 +173,10 @@ class Stage03App:
                 self._choose_reward(key - pygame.K_1)
             elif key in (pygame.K_LEFT, pygame.K_a):
                 self.ui.reward_focus = (self.ui.reward_focus - 1) % len(self.level_run.reward_choices)
+                self.audio.play("hover")
             elif key in (pygame.K_RIGHT, pygame.K_d):
                 self.ui.reward_focus = (self.ui.reward_focus + 1) % len(self.level_run.reward_choices)
+                self.audio.play("hover")
             elif key in (pygame.K_RETURN, pygame.K_SPACE):
                 self._choose_reward(self.ui.reward_focus)
             elif key == pygame.K_r:
@@ -208,6 +211,8 @@ class Stage03App:
             return
         for index, rect in enumerate(REWARD_RECTS[: len(self.level_run.reward_choices)]):
             if rect.collidepoint(pos):
+                if index != self.ui.reward_focus:
+                    self.audio.play("hover")
                 self.ui.reward_focus = index
                 return
 
@@ -274,6 +279,7 @@ class Stage03App:
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
+        self.audio.play_music("battle")
         self.audio.play("click")
 
     def _seed_opening_commands(self) -> None:
@@ -373,7 +379,7 @@ class Stage03App:
         self.level_run.encounter.set_command(command)
         self.ui.feedback = f"第 {slot} 拍：{self.command_label(command)}。"
         self.ui.selected_slot = None
-        self.audio.play("click")
+        self.audio.play("slot")
 
     def _execute(self) -> None:
         if self.scene is not AppScene.BATTLE or self.level_run.phase is not LevelPhase.BATTLE:
@@ -401,6 +407,12 @@ class Stage03App:
         elif self.level_run.encounter_index != old_index:
             self._seed_opening_commands()
             self.events += self.level_run.encounter.preparation_events
+            if (
+                self.level_index == 1
+                and self.level_run.encounter_index
+                == len(self.level_run.definition.encounters) - 1
+            ):
+                self.audio.play_music("final")
             self.ui.feedback = "新遭遇已接入；生命与协议保留，敌人状态已重置。"
         else:
             self.ui.feedback = "回合已结算；敌人重新定位并公开下一轮意图。"
@@ -444,6 +456,7 @@ class Stage03App:
         self.events = self.level_run.encounter.preparation_events
         self.animation_started_ms = pygame.time.get_ticks()
         self._last_audio_event_index = None
+        self.audio.play_music("battle")
         self.audio.play("inverse")
 
     def active_event(self) -> LogicEvent | None:

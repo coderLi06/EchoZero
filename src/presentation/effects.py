@@ -75,6 +75,11 @@ def presentation_frame(
 
 
 def cue_for_event(event: LogicEvent) -> str | None:
+    if (
+        event.kind in {"damaged", "shield_absorbed"}
+        and event.detail == "locked_intent"
+    ):
+        return "enemy_attack"
     return EVENT_CUES.get(event.kind)
 
 

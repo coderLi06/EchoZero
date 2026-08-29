@@ -47,6 +47,8 @@ def test_protocol_feedback_and_key_event_cues_are_explicit() -> None:
     protocol = LogicEvent("plugin_triggered", 3, "player", detail="echo_protocol")
     assert plugin_feedback(protocol) == "回声协议 · 重放首拍"
     assert cue_for_event(protocol) == "protocol"
+    enemy_hit = LogicEvent("damaged", 4, "enemy", "player", detail="locked_intent")
+    assert cue_for_event(enemy_hit) == "enemy_attack"
     assert {
         "moved", "pushed", "shielded", "damaged", "died",
         "plugin_triggered", "rule_changed", "rule_held",
@@ -58,6 +60,8 @@ def test_audio_controls_are_safe_before_initialisation() -> None:
     audio.set_volume(2.0)
     audio.set_muted(True)
     audio.play("missing")
+    audio.play_music("missing")
+    audio.stop_music()
     assert audio.master_volume == 1.0
     assert audio.muted is True
     assert audio.enabled is False
@@ -73,6 +77,63 @@ def test_missing_audio_device_degrades_without_crashing(monkeypatch) -> None:
     audio.initialise()
     assert audio.enabled is False
     assert audio.sounds == {}
+    assert audio.music == {}
+
+
+def test_music_channel_loops_tracks_and_follows_master_controls() -> None:
+    class Track:
+        def __init__(self) -> None:
+            self.volume = -1.0
+
+        def set_volume(self, volume: float) -> None:
+            self.volume = volume
+
+    class Channel:
+        def __init__(self) -> None:
+            self.busy = False
+            self.plays: list[tuple[object, int, int]] = []
+            self.fade_ms = -1
+
+        def get_busy(self) -> bool:
+            return self.busy
+
+        def play(self, track: object, loops: int, fade_ms: int) -> None:
+            self.plays.append((track, loops, fade_ms))
+            self.busy = True
+
+        def fadeout(self, fade_ms: int) -> None:
+            self.fade_ms = fade_ms
+            self.busy = False
+
+    audio = CueAudio()
+    track = Track()
+    channel = Channel()
+    audio.enabled = True
+    audio.music = {"menu": track}
+    audio.music_channel = channel
+
+    audio.set_volume(0.5)
+    assert track.volume == 0.14
+    audio.play_music("menu")
+    audio.play_music("menu")
+    assert channel.plays == [(track, -1, 280)]
+    assert audio.current_music == "menu"
+
+    audio.set_muted(True)
+    assert track.volume == 0.0
+    audio.stop_music()
+    assert channel.fade_ms == 240
+    assert audio.current_music is None
+
+
+def test_formal_flow_switches_to_final_encounter_music(monkeypatch) -> None:
+    app = Stage03App(seed=10303)
+    music_calls: list[str] = []
+    monkeypatch.setattr(app.audio, "play_music", music_calls.append)
+    app._run_flow_smoke()
+    assert music_calls[0] == "battle"
+    assert "final" in music_calls
+    assert music_calls.count("battle") >= 3
 
 
 def test_accessibility_settings_persist_across_restart_and_level_transition() -> None:
