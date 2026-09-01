@@ -34,6 +34,7 @@ def test_stage03_app_smoke_traverses_full_flow_and_clean_restart() -> None:
 def test_two_click_swap_and_explicit_pull_are_reachable_from_keyboard() -> None:
     app = Stage03App()
     app._start_level()
+    app._skip_all_tutorial()
     app._choose_slot(2)
     app._choose_slot(0)
     assert app.ui.selected_slot is None
@@ -49,6 +50,7 @@ def test_two_click_swap_and_explicit_pull_are_reachable_from_keyboard() -> None:
 def test_formal_keyboard_and_mouse_controls_can_clear_level_one() -> None:
     app = Stage03App()
     app._handle_key(pygame.K_RETURN)
+    app._skip_all_tutorial()
 
     # P-M-L -> L-P-M, using two visible two-click swaps.
     for index in (2, 0, 1, 2):

@@ -1,10 +1,10 @@
 # ARCHITECTURE——技术架构
 
-> 状态：Stage07 新玩家引导与离线盲测支持已落地；保持纯领域模拟与 pygame 表现分离。
+> 状态：Action Roguelike 阶段已完成代码侧实现；原 Stage07 Showcase 保留，继续保持纯领域模拟与 pygame 表现分离。
 
 ## 1. 架构目标
 
-支持两关高质量 Demo、确定性因果预演和快速配置内容。非目标：通用引擎、ECS 框架、联网、数据库、地图编辑器、脚本语言。
+支持两关高质量 Showcase、确定性因果预演，以及可复现的程序 Action Run。非目标：通用引擎、ECS 框架、联网、数据库、地图编辑器、脚本语言或复杂连招。
 
 ## 2. 依赖方向
 
@@ -16,9 +16,22 @@ JSON ─→ Config Loader ─→ Registry ─→ Simulator ─→ CombatState
                               LogicEvent[] ─→ Renderer/Animation/Audio
 
 Preview: clone(CombatState) ─→ 同一个 Simulator ─→ PreviewResult
+
+Action Run: Seed ─→ ProceduralEncounterGenerator ─→ ActionRun
+                                              ↓
+实时敌人: BehaviorTree ─→ PreparedAction ─→ Execute + Enemy Intent
+战术模式: PreparedAction ─→ EnemyIntent ─→ 现有 Simulator
 ```
 
-`domain` 不知道窗口、图片、音频和动画；`presentation` 不决定伤害或 AI；`infrastructure` 只负责配置、路径和存档。MVP 使用确定性的“玩家三命令后敌人执行”流程，不实现敌我真正同步冲突。
+`domain` 不知道窗口、图片、音频和动画；`presentation` 不决定伤害或 AI；`infrastructure` 只负责配置、路径和存档。Showcase 使用确定性的三拍流程；Action Run 用离散网格上的实时冷却推进动作，Q 模式暂停并转入同源三拍模拟。
+
+## 2.1 Action Run 新增职责
+
+- `domain/procedural.py`：Seeded 房间/走廊/障碍/危险/出生点生成，BFS 连通性和距离校验，有限次数失败重试；
+- `domain/behavior_tree.py`：BehaviorNode、Selector、Sequence、Condition、Action 与三种敌人树；输出唯一 PreparedAction；
+- `domain/action_run.py`：实时动作事实、冷却、Encounter/Reward/Result 流程，以及 Tactical Mode 对 `simulate_turn` 的适配；
+- `presentation/action_renderer.py`：绘制地图、Intent、打击反馈、Tactical Overlay、Reward 和 Run 结果，只读领域状态与事件；
+- `action_app.py`：键鼠输入、60 FPS 推进、Seed 展示和场景切换；`Stage03App` 继续作为 Tutorial / Showcase 入口。
 
 ## 3. 推荐目录
 
@@ -174,13 +187,13 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 
 ## 19. Stage07 引导与盲测支持
 
-- `presentation/tutorial.py`：保存一次一个概念的短引导队列、已显示与跳过状态；它只决定当前展示内容，不修改关卡、命令或模拟状态；
-- `presentation/stage03_renderer.py`：按引导目标高亮既有三拍槽、Intent、Preview、Execute、规则与相位锚，保持危险格和角色视觉层级；
+- `presentation/tutorial.py`：保存开局 9 步模拟教学、当前进度、跳过本步、全部跳过和显式重播状态；它只决定当前展示内容，不修改关卡、命令或模拟状态；
+- `presentation/stage03_renderer.py`：教学模式用半透明聚光遮罩和 4 px 方框高亮棋盘、CORE/SHIELD、Intent、三拍槽、Preview、Protocol 与 Execute；正式对局不渲染自动提示，只保留右下角“重新进入教学”；
 - `infrastructure/session_metrics.py`：仅记录 Seed、Encounter、回合、HP、Build、Retry、Defeat 与引导状态，并覆盖写入本地文本；不联网、不记录身份或设备隐私；
-- `Stage03App`：在正式路径的既有交互点推进引导，在领域回合已结算后消费结果生成场次摘要；窗口失焦只清除未提交的 UI 选择，连续鼠标 Execute 有短防抖；
+- `Stage03App`：首次开始 Level 1 时先进入表现层模拟教学；教学激活期间普通左键或 `Tab` 只推进步骤，全部战斗输入被阻断且领域状态不变；完成或跳过后才允许正式输入，Level 2 不再自动插入提示；
 - `stage03_smoke.py`：正式 Smoke 路径显式覆盖 Level 1 五个概念、Level 2 顺序/锚点/首次切相以及 Restart。
 
-依赖新增为 `Stage03App → ContextualTutorial / SessionMetrics`。二者均位于领域层之外；Preview 和 Execute 仍唯一依赖 `simulate_turn`，引导、日志和防抖不能改变确定性战斗结果。
+依赖保持 `Stage03App → ContextualTutorial / SessionMetrics`。二者均位于领域层之外；Preview 和 Execute 仍唯一依赖 `simulate_turn`，教学遮罩、日志和防抖不能改变确定性战斗结果。
 
 ## 20. Final Visual Polish 表现强化
 
@@ -191,3 +204,61 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - Preview ghost、Action Slot 交换、CORE/SHIELD 闪色、Encounter 节点脉冲、规则翻转、Protocol HUD 与 Reward 获得动画只消费 BattleView/LogicEvent/UI 时间，不写入领域状态。
 
 依赖保持 `Simulator → LogicEvent/SimulationResult → BattleView/PresentationFrame → Renderer/Audio`。没有第二套 Preview、第二套战斗结算或新的随机源。
+
+## 21. Action Run 新手引导
+
+- `presentation/action_tutorial.py`：保存 9 步独立模拟教学的步骤、进度、返回、跳过本步和全部跳过状态，只描述界面内容，不导入或修改 `ActionRun`；
+- `presentation/action_renderer.py`：使用静态模拟战场、非纯颜色的 4 px 聚光框和宽屏说明面板，依次指向 CORE、移动、攻击/闪避/技能、Behavior Tree Intent、Tactical 入口、三拍 Preview 与三选一奖励；
+- `ActionApp`：首次 New Run 先启动教学，完成后才调用 `start_new_run`，因此教学不会消费 Seed、生成地图或启动敌人计时；正式战斗重播教学时暂停同一个 Run，退出后原状态继续；
+- 正式 Smoke 通过实际 New Run 请求走完教学，再验证三 Encounter、奖励和 Boss 终局；交互测试覆盖返回、跳过、Esc 取消、输入阻断、Seed 不提前消费和重播状态不变。
+
+依赖保持 `ActionApp → ActionTutorial / ActionRenderer` 与 `ActionApp → ActionRun` 两条单向路径。教学层没有 RNG，也不会形成第二套战斗、AI 或 Tactical 规则。
+
+## 22. Action Run 可读性与反应窗口
+
+- `presentation/action_art.py`：集中绘制电路地板、装甲墙、危险标记，以及玩家六边核心、Melee 双刃、Charger 推进箭头、Ranged 准星和 Warden 八角守卫轮廓；全部为项目自制的 pygame 图形，不依赖外部素材或授权；
+- `presentation/action_renderer.py`：正式地图单元格由 48px 提升到 56px，地图占据 840×560 主区域，HUD 缩为 324px 信息列；基础表面、地板和正文整体提亮，正文与面板对比度自动测试不低于 4.5:1；
+- 教学正文提升到 16px 近白色，遮罩透明度降低，并保留黄色边框与局部聚光双编码；Enemy Intent 增加下一次 Action 秒数，地图开场显示 `SYNC WINDOW`；
+- `ActionRun`：每次 Encounter 重置独立 `encounter_elapsed`，首个敌人 Action 延迟 1.65 秒；Melee / Charger / Ranged / Warden 后续间隔分别为 0.96 / 1.18 / 1.28 / 1.08 秒；
+- `ActionApp`：长按 WASD 的重复间隔由 105ms 调整为 150ms，单步、闪避和 Tactical 输入规则不变。
+
+表现仍只读取领域事实；单位图形、倒计时和 SYNC 横幅不参与 AI 或伤害结算。节奏测试覆盖安全窗口边界与各类间隔，视觉测试覆盖单元格大小、正文对比度和五种非同形轮廓。
+
+## 23. Action 动作语义、输入与原创音频
+
+- `ActionApp`：WASD 的 `KEYDOWN` 立即调用一次 `move_player`，随后设置 190ms 首次重复等待；保持按键时再以 150ms 间隔连续移动，解决仅依赖 `get_pressed()` 导致短按不移动的问题；
+- `ActionApp._consume`：只根据 `LogicEvent` 选择 `move / attack / dodge / skill / hurt` 表现姿态及有限时长；Reduce Motion 会把动作时长限制在 100ms；
+- `presentation/action_art.py`：玩家由头、躯干、手臂、腿和能量刃组成；动作进度只改变绘制关节。Melee 根据当前 Action 朝目标举刀，Ranged 在攻击 Action 时沿同一个 Intent 目标绘制枪口和循环弹丸；危险格绘制三簇分相火焰；
+- `presentation/action_renderer.py`：奖励类别固定映射为“协议 / 技能 / 属性”，常驻 BUILD 改为“构筑”；
+- `presentation/audio.py`：Menu 48 拍、Battle 64 拍、Final 64 拍，分别形成约 12.5s / 12.2s / 10.9s 的原创循环，并叠加原创低音、节拍和高频脉冲；不读取或采样外部游戏音频。
+
+角色动作、武器、弹丸、火焰和音乐均位于表现层。战斗位置、命中、冷却和敌人 Action 继续由领域层决定；素材版权记录集中于 `ASSET_CREDITS.md`。
+
+## 24. Action Final UI Polish
+
+- `presentation/action_renderer.py`：正式 HUD 固定为 CORE/SHIELD、DODGE/SKILL/TACTICAL、玩家化 Enemy Intent 与分类型 Build 四层；`CHASE/STRIKE/SHOOT` 等内部 Action 标签只经展示映射输出中文意图，Behavior Tree 节点仅在 F3 技术面板出现；
+- `presentation/action_art.py`：地板使用低对比电路微纹理，墙体降低边缘与铆钉权重，危险区用红色斜纹和火焰双编码；玩家呼吸轮廓、移动/闪避残影、攻击方向、敌人准备脉冲、命中标记和死亡扫描消散均为表现事实；
+- `ActionApp`：只保存 F3 面板、CORE flash、移动轨迹、死亡碎片和 680ms Reward 获得反馈的 UI 时间；获得反馈期间暂停实时推进，Reduce Motion 缩短到 320ms；
+- `ActionRenderer`：Tactical 使用降亮战场、青色边框、单条扫描线、青/红预测实体与位移箭头；Reward 使用协议紫、技能青、属性绿，并在选择后显示 `ACQUIRED / 获得强化`；
+- 响应式继续复用 1280×800 逻辑画布和唯一 `update_viewport_layout()`，初始化后每帧以及 resize/restored/shown/exposed/maximized/focus gained 均从当前 display Surface 幂等刷新。
+
+所有新增状态均位于表现/输入协调层，不导入领域层，也不参与伤害、AI、程序生成、奖励随机或 Tactical 模拟。
+
+## 25. 中文 HUD、Build 可见性与输入焦点
+
+- `presentation/action_renderer.py`：正式右栏以中文呈现核心/护盾、冷却、敌方意图、战术三拍和操作说明；英文只保留低权重系统标签与 F3 技术面板；
+- Build 从类型计数改为常驻的“类型 + 强化名称 + 当前累计效果”，协议长说明通过 `effect_type` 映射为等价短句，第二关与 Boss 均能直接确认已选技能是否生效；
+- `ActionApp`：WASD 与方向键共用同一方向映射、即时按下和长按重复路径；窗口失焦清除重复计时，恢复/显示/最大化时刷新 viewport 并请求键盘焦点，点击窗口也会恢复焦点；
+- 移动受阻继续由领域层返回 `move_blocked`，表现层只显示 520ms“前方受阻”，不改变移动规则或碰撞判定。
+
+依赖仍为 `ActionRun → LogicEvent → ActionApp/ActionRenderer`；输入兼容与文案层没有修改程序地图、Behavior Tree、战斗数值、奖励随机或协议效果。
+
+## 26. 真实键盘事件与输入法边界（2026-08-31）
+
+- `ActionApp._handle_keyboard_event()` 统一消费 pygame `KEYDOWN / KEYUP`，移动方向优先读取 SDL 物理 scancode，再以逻辑 key 兜底；该兼容以 pygame 实际收到键盘事件为前提；
+- 长按状态由收到的按下/抬起事件显式维护，不再依赖 `pygame.key.get_pressed()` 的全局翻译结果；最近按下的移动方向进入既有 190ms 首次等待和 150ms 重复节奏；
+- 新 Run 和窗口失焦都会清空已按下状态，避免切回窗口后残留移动；方向键、Tactical 三拍输入和原 `_handle_key()` 测试入口保持兼容。
+
+真实 Windows 人工诊断确认：英文输入法下事件、InputState、移动向量、碰撞、玩家坐标和 Renderer 全链正常；中文输入法状态可能不向 pygame 提供可用游戏按键事件。负责人选择答辩前切换英文输入法作为运行要求，不在本阶段接管或关闭系统输入法。
+
+此修复只改变输入适配层，不修改 `ActionRun.move_player()`、碰撞、冷却、地图或任何战斗结算。

@@ -59,7 +59,10 @@ def state_fingerprint(state: CombatState) -> str:
             for e in sorted(state.entities.values(), key=lambda item: item.entity_id)
         ],
         "intents": [
-            [i.actor_id, i.target_pos.x, i.target_pos.y, i.damage, i.order]
+            [
+                i.actor_id, i.target_pos.x, i.target_pos.y, i.damage, i.order,
+                i.action_kind, i.label,
+            ]
             for i in sorted(state.enemy_intents, key=lambda item: (item.order, item.actor_id))
         ],
         "plugins": list(state.player_plugins),
@@ -187,8 +190,29 @@ def _pull(state: CombatState, actor: EntityState, target_entity_id: str | None, 
 def _apply_enemy_intents(state: CombatState, events: list[LogicEvent]) -> None:
     for intent in sorted(state.enemy_intents, key=lambda item: (item.order, item.actor_id)):
         tick = SLOT_COUNT + intent.order
-        if intent.actor_id not in state.entities:
+        actor = state.entities.get(intent.actor_id)
+        if actor is None:
             events.append(LogicEvent("intent_cancelled", tick, intent.actor_id, detail="attacker_dead"))
+            continue
+        if intent.action_kind == "move":
+            if _blocked(state, intent.target_pos):
+                events.append(
+                    LogicEvent(
+                        "enemy_move_blocked", tick, intent.actor_id,
+                        from_pos=actor.pos, to_pos=intent.target_pos,
+                        detail=intent.label,
+                    )
+                )
+            else:
+                origin = actor.pos
+                actor.pos = intent.target_pos
+                events.append(
+                    LogicEvent(
+                        "enemy_moved", tick, intent.actor_id,
+                        from_pos=origin, to_pos=intent.target_pos,
+                        detail=intent.label,
+                    )
+                )
             continue
         target = state.entity_at(intent.target_pos)
         if target is None:

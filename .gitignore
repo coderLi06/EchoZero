@@ -28,6 +28,8 @@ desktop.ini
 build/
 dist/
 *.egg-info/
+artifacts/ppt_build/
+*.pptx.inspect.ndjson
 
 # Logs
 *.log

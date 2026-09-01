@@ -2,7 +2,13 @@ import pygame
 from types import SimpleNamespace
 
 from src.domain import LogicEvent, TimelineRule, state_fingerprint
-from src.presentation.audio import CueAudio
+from src.presentation.audio import (
+    BATTLE_SCORE,
+    FINAL_SCORE,
+    MENU_SCORE,
+    MIXER_FORMAT,
+    CueAudio,
+)
 from src.presentation.effects import (
     BASE_EVENT_MS,
     EVENT_CUES,
@@ -124,6 +130,14 @@ def test_music_channel_loops_tracks_and_follows_master_controls() -> None:
     audio.stop_music()
     assert channel.fade_ms == 240
     assert audio.current_music is None
+
+
+def test_original_music_scores_are_long_form_loops() -> None:
+    assert MIXER_FORMAT == (22050, -16, 1)
+    assert len(MENU_SCORE) * 260 >= 10_000
+    assert len(BATTLE_SCORE) * 190 >= 10_000
+    assert len(FINAL_SCORE) * 170 >= 10_000
+    assert len(set(BATTLE_SCORE)) >= 10
 
 
 def test_formal_flow_switches_to_final_encounter_music(monkeypatch) -> None:

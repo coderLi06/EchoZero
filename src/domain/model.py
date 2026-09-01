@@ -78,6 +78,8 @@ class EnemyIntent:
     target_pos: GridPos
     damage: int
     order: int
+    action_kind: str = "attack"
+    label: str = ""
 
 
 @dataclass(frozen=True)

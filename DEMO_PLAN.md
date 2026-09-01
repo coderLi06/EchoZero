@@ -12,9 +12,23 @@
 
 ## 2. 三分钟主路线
 
+### Action Roguelike 新主路线
+
 | 时间 | 操作与画面 | 要传达的评分点 | 讲解上限 |
 |---|---|---|---|
-| 0:00～0:30 | 主菜单进入，展示错误顺序预演 | 产品印象、规则清楚 | 敌人意图固定 |
+| 0:00～0:25 | 点击 New Run，先展示教学的动作→Intent→Tactical 信息路径，再按 F1 全部跳过；指向正式 Run 的 Seed、程序房间、危险区和生成重试次数 | 易懂性、程序生成、复现 | “教学不消耗正式 Seed，房间生成后再过 BFS 与距离校验” |
+| 0:25～0:55 | 利用 1.65 秒 SYNC WINDOW 观察三类轮廓和 Intent 倒计时；WASD 接敌，攻击击退，闪避一轮 Charger | 动作战斗、反馈、可读性 | 不解释数值 |
+| 0:55～1:25 | 指向三类 Prepared Action，按 Q 冻结 | Behavior Tree、Intent 同源 | “Intent 就是树当前 Action” |
+| 1:25～1:55 | 调整三拍，比较 Preview 后 Execute | 主创新、回合策略 | “同一模拟器预演与执行” |
+| 1:55～2:20 | 清场后选择 Protocol / Skill / Stat 三选一 | 随机奖励、Build | 指出 Seed 与类型 |
+| 2:20～2:45 | 进入下一张明显不同的程序地图，展示 Reverse / Phase Anchor | 复玩、特色保留 | 不展开旧关卡 |
+| 2:45～3:00 | 切固定终局或结果页，展示新 Seed 重开与局外解锁 | 完整 Run、Roguelike | 结束 |
+
+### 双关卡 Showcase 历史主路线
+
+| 时间 | 操作与画面 | 要传达的评分点 | 讲解上限 |
+|---|---|---|---|
+| 0:00～0:30 | F5 进入 Showcase，展示错误顺序预演 | 产品印象、规则清楚 | 敌人意图固定 |
 | 0:30～0:55 | 换成“牵引→推击→移动”并执行 | 主创新 | “同样三招，顺序改变结局” |
 | 0:55～1:15 | 选择回声，用空第三拍完成协议验证 | Build | “Build 改写时间轴” |
 | 1:15～1:45 | 使用固定键盘路线快速完成双重锁定 | 第一关完整度 | 不展开讲解 |
@@ -33,6 +47,8 @@
 - AI：“敌人枚举可达位置，对伤害、节点、距离和危险进行效用评分，再公开最高分意图。”
 - 数据驱动：“插件由条件和效果节点配置，新增 Build 主要改数据，不堆技能分支。”
 - 随机：“独立种子让随机局可复现，平衡和现场问题都能重放。”
+- 程序地图：“Seed 先生成房间和走廊，再用 BFS 检查所有敌人、奖励和危险区可达；距离不合法就自动换派生 Seed 重试。”
+- 行为树：“Melee、Charger、Ranged 使用不同树，但画面 Intent 和真正执行共享同一个 PreparedAction。”
 
 ## 5. 失败预案
 
@@ -44,6 +60,7 @@
 
 ## 6. 验收
 
+- 首次 New Run 在 Seed 与敌人计时开始前进入教学；完成、跳过和重播三条路径均不污染正式 Run；
 - 3 分钟路线连续演练 5 次无阻断；
 - 第一次主创新出现不晚于 60 秒；
 - Stage03 路线在 3 分钟内进入 Level Clear 或高潮终局；
@@ -132,11 +149,11 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 
 ## 16. Stage07 无口头教学验收路径
 
-正式入口按 `Main Menu → Level 1 五条就地提示 → 两次 Reward → Level 1 Clear → Level 2 顺序/锚点提示 → 首次切相提示 → Final Encounter → Demo Clear → Restart` 验收。每条提示只解释一个当前可见概念，可用 `Tab` 前进、`F1` 跳过；Stable / Reverse 的实际顺序继续由常驻 HUD 和逐拍高亮表达。
+正式入口按 `Main Menu → 9 步模拟教学 → 纯净 Level 1 → 两次 Reward → Level 1 Clear → 纯净 Level 2 → Final Encounter → Demo Clear → Restart` 验收。教学一次解释一个当前可见概念，可用鼠标单击或 `Tab` 前进，并可跳过本步或全部跳过；教学结束后不再自动弹出提示，Stable / Reverse 继续由常驻 HUD 和逐拍高亮表达。
 
 自动 Smoke 只验证路径、状态和渲染覆盖，不计为真人盲测。真人测试必须按 `docs/STAGE07_BLIND_TEST.md` 在观察者不提示的条件下执行；当前状态为 `External blind test pending.`。本地 `logs/session_summary.txt` 只辅助定位 Encounter、回合、HP、Build、Retry、Defeat 与引导使用情况，不收集个人信息。
 
-## 17. Stage07 代码侧验收（2026-08-29）
+## 17. Stage07 代码侧历史验收（2026-08-29，已由第 21 节替代）
 
 - 固定 Seed `10303` 的正式入口 Smoke 覆盖 Main Menu、Level 1 五条引导、两次 Reward、Level 1 Clear、Level 2 顺序/锚点/首次切相、Final Encounter、Demo Clear 与 Restart；六个 Encounter 全部 Victory，最终 CORE 6/6；
 - 新增测试覆盖引导只显示一次与跳过持久、标准首回合自然推进、离线摘要和 Level 2 首次失败位置、Shield/Build 文案、失焦、快速点击、48 px 点击区、ESC 与 1600×900 / 1920×1080 窗口容纳；全量为 78 项；
@@ -153,3 +170,53 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - Preview 增加低权重终点轮廓和方向箭头；Protocol 常驻区显示核心协议、英文代码与附加模块；Reward 增加卡牌类型、紫色焦点及 680 ms 获得反馈；
 - 视觉 QA 共 12 张：Main Menu、Level 1、Intent/Preview/Execute 教学、Reward、Protocol Acquired、Build 常驻、Level 2 Reverse、执行拍、因果改写、1920×1080；未见裁切、内部 ID、意外滚动区域或新增 console error；
 - 全量 `pytest` 为 85 passed；固定 Seed `10303` 正式入口 Smoke 完成双关卡、两次 Reward、Stable/Reverse、Phase Anchor、Final Encounter、终局与 Restart。
+
+## 19. Window viewport 稳定性修复验收（2026-08-30）
+
+- 根因：正式循环缓存启动 display Surface，且只在 `VIDEORESIZE` 中按事件尺寸再次创建窗口；Windows 恢复、重新显示、最大化和焦点回归可能没有走该单一路径，导致 renderer 暂时使用旧输出缓冲，后续 resize 才自愈；
+- 修复：统一 `update_viewport_layout()` 从当前 `pygame.display.get_surface()` 绑定实时客户端 Surface；初始化布局完成后、连续渲染帧以及 resize / restored / shown / exposed / maximized / focus gained 均调用同一逻辑，事件回调不再二次 `set_mode`；
+- 缩放：1280×800 逻辑画布只按当前输出 Surface 等比计算一次，viewport 居中，外层输出每帧先铺满游戏背景；不读取屏幕高度，不使用或叠加 DPI 比例；
+- 自动验收：1600×900 → 1440×900、1920×1080 → 1728×1080，重复刷新无二次缩放，鼠标中心均反算为 640×400；1280×900 的上下留边逐像素验证为游戏背景；
+- 回归：全量 `pytest` 为 88 passed；dummy 视频/音频设备下正式入口 Smoke 返回 0 并走完两关。当前主机每显示器 DPI 配置为 125%，桌面逻辑区域为 1280×720，无法在同一物理显示器上人工切换 1600×900 / 1920×1080 和 100% / 125% 两套组合，发布机仍应执行最大化→恢复→Win+D→恢复的最终人工复核。
+
+## 20. 标准 Windows 可调整窗口验收（2026-08-30）
+
+- 复测后确认上一轮只解决了渲染 Surface 过期，首次窗口仍固定请求 1280×800；当前 125% 缩放环境中 pygame 报告桌面为 1280×720，初始客户区高于桌面，系统标题栏、顶部游戏内容或底部因此可能落到可见区域外；
+- 初始窗口外壳现只在创建时参考当前桌面尺度，分别预留 10% 水平和 15% 垂直系统区域，再保持 1280×800 的 16:10 比例；桌面尺度不参与游戏 layout、viewport、鼠标映射或 DPI 缩放；
+- 当前主机首次窗口从 1280×800 改为 979×612。真实 SDL/Windows 窗口返回 `borderless=False`、`resizable=True`；最大化客户区为 1280×697，最小化/恢复正常，调整至 1100×650 后 display Surface 同步为 1100×650；
+- 系统标题栏原生提供最小化、最大化/还原和关闭按钮；`pygame.RESIZABLE` 原生提供四边与四角拖拽，不在游戏画面内仿制窗口控件；
+- 全量 `pytest` 为 89 passed，dummy 视频/音频正式入口 Smoke 返回 0；UI 设计、Tutorial、Preview、Execute、Protocol、Reward、游戏数值和规则未修改。
+
+## 21. 独立模拟教学与纯净正式对局验收（2026-08-30）
+
+- 首次开始 Level 1 依次讲解模拟教学、CORE/SHIELD、Enemy Intent、三拍命令链、五种 Action、Preview、Protocol、Execute 与正式对局入口，共 9 步；
+- 教学使用 190 alpha 遮罩压暗非目标区域，目标保持原亮度并增加 4 px 黄色方框；面板显示明确进度、名词、效果、鼠标/Tab 前进说明以及并列的“跳过本步 / 全部跳过”；
+- 教学激活期间数字键、方向键、技能键、执行和右键均不会进入战斗控制器；自动测试确认回合、命令与领域状态不变；
+- 完成或全部跳过后，Level 1、Reward、Level 2 和终局不再自动弹出任何教学；右下角“重新进入教学”可在不重置回合的情况下重新播放完整流程；
+- 5 张 1280×800 视觉 QA 覆盖首步、Action、Protocol、Ready 与纯净对局，未发现标题、正文、按钮或高亮框裁切；
+- 全量 `pytest` 为 92 passed；dummy 视频/音频下正式入口 Smoke 返回 0，完成两关、两次 Reward、Protocol、Stable/Reverse、Phase Anchor、Final Encounter 与 Restart；游戏规则、数值和同源 Preview/Execute 未修改。
+
+## 22. EchoZero Final UI Polish 验收（2026-08-30）
+
+- 首页保留 ECHO // ZERO Logo 与构图，删除比例式设计文案，改为“实时交锋 · 冻结战局 · 改写因果”，主次入口统一为 `NEW RUN / 开始远征` 与 `TUTORIAL / 教学演示`；
+- Action HUD 重排为生命护盾、三组冷却、玩家操作、敌方意图和本局构筑；正式画面不再显示 Behavior Tree、Prepared Action 或 `CHASE/STRIKE/SHOOT`，F3 技术面板单独展示 Selector / Sequence / Condition / PreparedAction；
+- 地图墙体、边缘和铆钉降权，地板增加微电路层次，危险区使用红色斜纹与火焰，特殊节点使用绿色菱形 `NODE`；
+- Tactical 使用降亮、青色边框与单扫描线，Preview 玩家/敌人分别为青色/红粉轮廓，位移用细箭头；Reduce Motion 取消扫描移动并缩短反馈；
+- Reward 三卡分别使用协议紫、技能青、属性绿，包含类型、名称、核心效果和短说明；选择后显示 680ms `ACQUIRED / 获得强化`，Build HUD 显示成长数量、类型统计和已安装条目；
+- 视觉 QA 先后两轮：第一轮发现 Tactical 扫描纹过强、单强化 Build 偏空；第二轮改为单扫描线并增加 RUN GROWTH / 类型统计后通过。最终 21 张截图覆盖 Main Menu、Action、Tactical、Reward、Acquired、Build、Final Encounter 和 1280×800 / 1600×900 / 1920×1080；
+- 全量 `pytest` 为 125 passed；Action Run、双关卡 Showcase 两条 dummy Smoke 与真实 Windows 正式入口启动均返回 0。窗口映射自动验证 1600×900 → 1440×900、1920×1080 → 1728×1080，并覆盖 restored/shown/exposed/focus gained；发布机仍应在答辩前人工执行一次 Win+D → 恢复。
+
+## 23. 中文 HUD、后续关强化与输入恢复验收（2026-08-30）
+
+- 正式 Action HUD 的核心/护盾、闪避、牵引技能、战术模式、敌方意图、本局构筑和 Tactical 三拍均改为中文主标签；ECHO // ZERO 品牌、低权重英文系统标签与 F3 技术面板保留；
+- 第一场奖励选择后，第二关右栏常驻显示强化类型、正式名称和当前效果，例如“技能 / 脉冲加速 / 基础攻击冷却 -15%”；Boss 的两项 Build 使用独立色条与短效果说明，不溢出面板；
+- WASD 与方向键都支持短按即时移动、长按连续移动和 Shift 闪避；窗口失焦时清除重复输入，恢复、重新显示或最大化后刷新 viewport 并请求焦点，鼠标点击也可取回键盘焦点；撞墙显示 520ms“前方受阻”；
+- 视觉 QA 两轮共 12 张截图，覆盖 1280×800 / 1600×900 / 1920×1080、Action、Tactical、Reward、第二关单技能、Boss 双强化和失焦提示；第一轮发现协议长说明溢出，第二轮改为等价短效果后通过；
+- 125 项全量测试通过；Action Run、Showcase 两条 dummy Smoke 与真实 Windows Action Smoke 均返回 0。未修改程序地图、BFS、Behavior Tree、敌人 AI、战斗规则、协议效果、Seed 或奖励随机。
+
+## 24. 真实 WASD 输入诊断与现场要求（2026-08-31）
+
+- 临时 `--input-debug` 在真实 Windows 窗口记录 event、focus、scene、pressed-state、movement vector、dt、before/target、collision、after 和 Renderer position；全项目确认 Action 主循环只有一个事件消费者，无旧 Scene 抢占、每帧清空输入或两套权威状态；
+- 英文输入法下真人按键日志完整通过：`KEYDOWN W → pressed={UP} → vector=(0,-1) → collision=clear → player position changed → Renderer position changed`；短按、长按和多键状态均可见；
+- 中文输入法状态下无法获得可用的游戏移动事件，因此物理 scancode 映射无法在“事件未送达”时补救。负责人确认无需代码修复，现场统一在启动/演示前切换英文输入法；
+- 临时 input-debug 和 `pygame.key.get_pressed()` 旁路已清理，正式版本仍只有事件驱动的一套输入状态；领域移动、碰撞、地图与 Renderer 未修改。

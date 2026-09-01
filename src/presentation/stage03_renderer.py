@@ -32,8 +32,9 @@ PROTOCOL_RECT = pygame.Rect(PANEL_X + 258, 96, 310, 42)
 MENU_START_RECT = pygame.Rect(460, 568, 360, 64)
 REWARD_RECTS = tuple(pygame.Rect(96 + index * 376, 260, 336, 300) for index in range(3))
 RESULT_RESTART_RECT = pygame.Rect(448, 586, 384, 62)
-TUTORIAL_NEXT_RECT = pygame.Rect(326, 694, 138, 48)
-TUTORIAL_SKIP_RECT = pygame.Rect(474, 694, 138, 48)
+TUTORIAL_SKIP_STEP_RECT = pygame.Rect(274, 688, 154, 48)
+TUTORIAL_SKIP_ALL_RECT = pygame.Rect(438, 688, 170, 48)
+TUTORIAL_REPLAY_RECT = pygame.Rect(1050, 680, 182, 48)
 
 COLORS = {
     "background": (7, 10, 18),
@@ -95,8 +96,28 @@ class Stage03Renderer:
         self.fonts: dict[tuple[int, bool, str], pygame.font.Font] = {}
         self.text_cache: dict[tuple[str, int, tuple[int, int, int], bool, str], pygame.Surface] = {}
         self.viewport = pygame.Rect((0, 0), WINDOW_SIZE)
+        self.update_viewport_layout()
+
+    def update_viewport_layout(self, output: pygame.Surface | None = None) -> None:
+        """Fit the logical canvas to the current client surface without caching its size."""
+        if output is not None:
+            self.output = output
+        output_width, output_height = self.output.get_size()
+        if output_width <= 0 or output_height <= 0:
+            self.viewport = pygame.Rect(0, 0, 0, 0)
+            return
+        scale = min(output_width / WINDOW_SIZE[0], output_height / WINDOW_SIZE[1])
+        scaled_width = max(1, round(WINDOW_SIZE[0] * scale))
+        scaled_height = max(1, round(WINDOW_SIZE[1] * scale))
+        self.viewport = pygame.Rect(
+            (output_width - scaled_width) // 2,
+            (output_height - scaled_height) // 2,
+            scaled_width,
+            scaled_height,
+        )
 
     def draw(self, app: Any) -> None:
+        self.update_viewport_layout()
         self._background(app)
         scene = app.scene.value
         if scene == "menu":
@@ -117,17 +138,7 @@ class Stage03Renderer:
         composed = pygame.Surface(WINDOW_SIZE)
         composed.fill(COLORS["background"])
         composed.blit(self.screen, shake)
-        output_size = self.output.get_size()
-        scale = min(output_size[0] / WINDOW_SIZE[0], output_size[1] / WINDOW_SIZE[1])
-        scaled_size = (
-            max(1, round(WINDOW_SIZE[0] * scale)),
-            max(1, round(WINDOW_SIZE[1] * scale)),
-        )
-        self.viewport = pygame.Rect(
-            (output_size[0] - scaled_size[0]) // 2,
-            (output_size[1] - scaled_size[1]) // 2,
-            *scaled_size,
-        )
+        scaled_size = self.viewport.size
         scaled = (
             composed
             if scaled_size == WINDOW_SIZE
@@ -188,7 +199,10 @@ class Stage03Renderer:
         self._draw_event_strip(app)
         self._rule_overlay(app)
         self._execution_overlay(app)
-        self._tutorial_highlight(app)
+        if app.tutorial.active:
+            self._tutorial_overlay(app)
+        elif not app.execution_active:
+            self._button(TUTORIAL_REPLAY_RECT, "重新进入教学", False)
 
     def _progress(self, app: Any, current: int, total: int) -> None:
         start_x = 950
@@ -570,9 +584,6 @@ class Stage03Renderer:
         return displayed
 
     def _draw_event_strip(self, app: Any) -> None:
-        if app.tutorial.current is not None:
-            self._tutorial_panel(app)
-            return
         rect = pygame.Rect(48, 626, 576, 126)
         self._panel(rect, COLORS["border"])
         self._text_at("因果反馈", 14, COLORS["primary"], (rect.x + 14, rect.y + 10), True)
@@ -803,37 +814,46 @@ class Stage03Renderer:
     def _global_status(self, app: Any) -> None:
         audio = "静音" if app.ui.muted else "音频"
         motion = "减弱动态" if app.ui.reduced_motion else "完整动态"
-        self._text_at("ESC 退出   ·   TAB 教学下一条   ·   F1 跳过教学", 12, COLORS["muted"], (48, 776))
+        self._text_at("ESC 退出", 12, COLORS["muted"], (48, 776))
         self._text_at(f"M {audio}  {app.ui.volume_percent}%   ·   -/+ 音量   ·   F2 {motion}", 12, COLORS["muted"], (872, 776))
 
     def _tutorial_panel(self, app: Any) -> None:
         step = app.tutorial.current
         if step is None:
             return
-        rect = pygame.Rect(48, 626, 576, 126)
+        rect = pygame.Rect(48, 556, 576, 196)
         self._panel(rect, COLORS["warning"], True)
-        level_one = ("timeline", "input", "intent", "preview", "execute")
-        level_two = ("level2_order", "anchor", "phase_switch")
-        group = level_one if step.step_id in level_one else level_two
-        current = group.index(step.step_id) + 1
-        total = len(group)
+        current, total = app.tutorial.progress
         self._text_at(
-            f"GUIDE  {current}/{total}   {step.title}",
+            f"TRAINING SIMULATION   {current}/{total}",
             14,
             COLORS["warning"],
-            (rect.x + 14, rect.y + 10),
+            (rect.x + 18, rect.y + 14),
             True,
+            "data",
         )
-        self._text_at(step.body, 13, COLORS["muted"], (rect.x + 14, rect.y + 39))
-        self._button(TUTORIAL_NEXT_RECT, "下一条  [TAB]", True)
-        self._button(TUTORIAL_SKIP_RECT, "跳过全部  [F1]", False)
+        self._text_at(step.title, 22, COLORS["text"], (rect.x + 18, rect.y + 42), True, "display")
+        self._text_at(step.body, 15, COLORS["muted"], (rect.x + 18, rect.y + 78))
+        self._text_at("单击任意位置或按 TAB 继续", 13, COLORS["primary"], (rect.x + 18, rect.y + 111), True)
+        self._button(TUTORIAL_SKIP_STEP_RECT, "跳过本步", True)
+        self._button(TUTORIAL_SKIP_ALL_RECT, "全部跳过", False)
 
-    def _tutorial_highlight(self, app: Any) -> None:
+    def _tutorial_target_rects(self, app: Any) -> list[pygame.Rect]:
         step = app.tutorial.current
         if step is None:
-            return
+            return []
         rects: list[pygame.Rect] = []
-        if step.target == "slots":
+        if step.target == "board":
+            state = app.level_run.encounter.state
+            rects.append(
+                pygame.Rect(
+                    GRID_ORIGIN,
+                    (state.width * CELL_SIZE, state.height * CELL_SIZE),
+                )
+            )
+        elif step.target == "core":
+            rects.append(CORE_RECT)
+        elif step.target == "slots":
             rects.append(SLOT_RECTS[0].unionall(SLOT_RECTS[1:]))
         elif step.target == "intent":
             rects.append(INTENT_RECT)
@@ -841,21 +861,26 @@ class Stage03Renderer:
             rects.append(PREVIEW_RECT)
         elif step.target == "execute":
             rects.append(EXECUTE_RECT)
-        elif step.target == "rule":
-            rects.append(TIMELINE_RECT)
-        elif step.target == "anchor":
-            rects.extend(
-                self.cell_rect(node).inflate(-4, -4)
-                for node in app.level_run.encounter.state.rule_nodes
-            )
+        elif step.target == "protocol":
+            rects.append(PROTOCOL_RECT)
+        return rects
+
+    def _tutorial_overlay(self, app: Any) -> None:
+        rects = self._tutorial_target_rects(app)
+        shade = pygame.Surface(WINDOW_SIZE, pygame.SRCALPHA)
+        shade.fill((3, 6, 12, 190))
+        for rect in rects:
+            shade.fill((0, 0, 0, 0), rect.inflate(12, 12))
+        self.screen.blit(shade, (0, 0))
         for rect in rects:
             pygame.draw.rect(
                 self.screen,
                 COLORS["warning"],
                 rect.inflate(8, 8),
-                3,
+                4,
                 border_radius=12,
             )
+        self._tutorial_panel(app)
 
     @staticmethod
     def _build_relation(plugin: Any, run: Any) -> str:

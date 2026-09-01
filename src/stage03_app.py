@@ -57,8 +57,9 @@ from src.presentation.stage03_renderer import (
     RESULT_RESTART_RECT,
     REWARD_RECTS,
     SLOT_RECTS,
-    TUTORIAL_NEXT_RECT,
-    TUTORIAL_SKIP_RECT,
+    TUTORIAL_REPLAY_RECT,
+    TUTORIAL_SKIP_ALL_RECT,
+    TUTORIAL_SKIP_STEP_RECT,
     WINDOW_SIZE,
     EVENT_LABELS,
     Stage03Renderer,
@@ -72,6 +73,41 @@ class AppScene(str, Enum):
     TRANSITION = "transition"
     RESULT = "result"
     ERROR = "error"
+
+
+VIEWPORT_REFRESH_EVENT_TYPES = frozenset(
+    event_type
+    for event_name in (
+        "VIDEORESIZE",
+        "WINDOWRESIZED",
+        "WINDOWSIZECHANGED",
+        "WINDOWRESTORED",
+        "WINDOWSHOWN",
+        "WINDOWEXPOSED",
+        "WINDOWMAXIMIZED",
+        "WINDOWFOCUSGAINED",
+    )
+    if isinstance((event_type := getattr(pygame, event_name, None)), int)
+)
+MIN_WINDOW_SIZE = (960, 600)
+INITIAL_DESKTOP_WIDTH_RATIO = 0.90
+INITIAL_DESKTOP_HEIGHT_RATIO = 0.85
+
+
+def initial_window_size(desktop_size: tuple[int, int]) -> tuple[int, int]:
+    """Choose a visible 16:10 client area while leaving room for native chrome."""
+    desktop_width, desktop_height = desktop_size
+    if desktop_width <= 0 or desktop_height <= 0:
+        return WINDOW_SIZE
+    width_limit = max(1, round(desktop_width * INITIAL_DESKTOP_WIDTH_RATIO))
+    height_limit = max(1, round(desktop_height * INITIAL_DESKTOP_HEIGHT_RATIO))
+    scale = min(1.0, width_limit / WINDOW_SIZE[0], height_limit / WINDOW_SIZE[1])
+    width = max(1, round(WINDOW_SIZE[0] * scale))
+    height = max(1, round(WINDOW_SIZE[1] * scale))
+    if desktop_width >= MIN_WINDOW_SIZE[0] and desktop_height >= MIN_WINDOW_SIZE[1]:
+        width = max(width, MIN_WINDOW_SIZE[0])
+        height = max(height, MIN_WINDOW_SIZE[1])
+    return (min(width, desktop_width), min(height, desktop_height))
 
 
 @dataclass
@@ -142,9 +178,16 @@ class Stage03App:
     def run(self) -> int:
         pygame.init()
         try:
-            self.screen = pygame.display.set_mode(WINDOW_SIZE, pygame.RESIZABLE)
+            desktop_sizes = pygame.display.get_desktop_sizes()
+            desktop_size = desktop_sizes[0] if desktop_sizes else WINDOW_SIZE
+            self.screen = pygame.display.set_mode(
+                initial_window_size(desktop_size),
+                pygame.RESIZABLE,
+            )
             pygame.display.set_caption("EchoZero | Tactical Causality")
             self.renderer = Stage03Renderer(self.screen)
+            pygame.event.pump()
+            self.update_viewport_layout()
             self.audio.initialise()
             self.audio.play_music("menu")
             if self.smoke_test and self.load_error is None:
@@ -164,12 +207,11 @@ class Stage03App:
                         self._handle_motion(event.pos)
                     elif event.type == pygame.WINDOWFOCUSLOST:
                         self._handle_focus_lost()
-                    elif event.type == pygame.VIDEORESIZE:
-                        size = (max(960, event.w), max(600, event.h))
-                        self.screen = pygame.display.set_mode(size, pygame.RESIZABLE)
-                        self.renderer.output = self.screen
+                    elif event.type in VIEWPORT_REFRESH_EVENT_TYPES:
+                        self.update_viewport_layout()
                 self._update_presentation_state()
                 self._update_presentation_audio()
+                self.update_viewport_layout()
                 self.renderer.draw(self)
                 pygame.display.flip()
                 frames += 1
@@ -184,6 +226,15 @@ class Stage03App:
             except OSError as exc:
                 self.metrics_error = str(exc)
             pygame.quit()
+
+    def update_viewport_layout(self) -> None:
+        """Synchronise layout with pygame's current client surface."""
+        current_surface = pygame.display.get_surface()
+        if current_surface is None:
+            return
+        self.screen = current_surface
+        if self.renderer is not None:
+            self.renderer.update_viewport_layout(current_surface)
 
     @property
     def preview(self) -> SimulationResult:
@@ -268,11 +319,11 @@ class Stage03App:
     def _handle_key(self, key: int) -> bool:
         if key == pygame.K_ESCAPE:
             return False
-        if key == pygame.K_F1:
-            self._skip_tutorial()
-            return True
-        if key == pygame.K_TAB and self.tutorial.current is not None:
-            self._advance_tutorial()
+        if self.tutorial.active:
+            if key == pygame.K_F1:
+                self._skip_all_tutorial()
+            elif key == pygame.K_TAB:
+                self._advance_tutorial()
             return True
         if key == pygame.K_m:
             self.ui.muted = not self.ui.muted
@@ -380,15 +431,18 @@ class Stage03App:
         if logical is None:
             return
         pos = logical
+        if self.tutorial.active:
+            if button != 1:
+                return
+            if TUTORIAL_SKIP_ALL_RECT.collidepoint(pos):
+                self._skip_all_tutorial()
+            elif TUTORIAL_SKIP_STEP_RECT.collidepoint(pos):
+                self._skip_tutorial_step()
+            else:
+                self._advance_tutorial()
+            return
         if button != 1 and not (self.scene is AppScene.BATTLE and button == 3):
             return
-        if button == 1 and self.tutorial.current is not None:
-            if TUTORIAL_NEXT_RECT.collidepoint(pos):
-                self._advance_tutorial()
-                return
-            if TUTORIAL_SKIP_RECT.collidepoint(pos):
-                self._skip_tutorial()
-                return
         if self.scene is AppScene.MENU and MENU_START_RECT.collidepoint(pos):
             self._start_level()
         elif self.scene is AppScene.RESULT and RESULT_RESTART_RECT.collidepoint(pos):
@@ -401,6 +455,9 @@ class Stage03App:
                     self._choose_reward(index)
                     return
         elif self.scene is AppScene.BATTLE:
+            if button == 1 and TUTORIAL_REPLAY_RECT.collidepoint(pos):
+                self._restart_tutorial()
+                return
             self._handle_battle_click(pos, button)
 
     def _handle_battle_click(self, pos: tuple[int, int], button: int) -> None:
@@ -449,7 +506,7 @@ class Stage03App:
         self.metrics.start_run(run_seed)
         self.scene = AppScene.BATTLE
         self.ui = Stage03UiState(
-            feedback="先观察红色锁定格，再调整三拍顺序。",
+            feedback="",
             muted=muted,
             reduced_motion=reduced_motion,
             volume_percent=volume_percent,
@@ -464,7 +521,7 @@ class Stage03App:
         self._post_execute_scene = AppScene.BATTLE
         self._pending_reward_index = None
         self._causality_rewrite = False
-        self.tutorial.begin_level_one()
+        self.tutorial.begin_initial()
         self._sync_tutorial_metrics()
         self._snapshot_metrics()
         self.audio.play_music("battle")
@@ -512,7 +569,6 @@ class Stage03App:
             self.ui.selected_slot = None
             self.ui.feedback = "顺序已改变；预演结果已同步刷新。"
             self.audio.play("click")
-        self._advance_tutorial()
 
     def _assign_from_cell(self, cell: GridPos) -> None:
         state = self.level_run.encounter.state
@@ -573,7 +629,6 @@ class Stage03App:
         self.ui.feedback = f"第 {slot} 拍：{self.command_label(command)}。"
         self.ui.selected_slot = None
         self.audio.play("slot")
-        self._advance_tutorial()
 
     def _execute(self) -> None:
         if (
@@ -606,9 +661,6 @@ class Stage03App:
         self._last_audio_event_index = None
         self.ui.selected_slot = None
         self.audio.play("confirm")
-        self._advance_tutorial()
-        if any(event.kind == "rule_changed" for event in resolution.result.events):
-            self.tutorial.show_once("phase_switch")
         self._sync_tutorial_metrics()
         resolved_player = resolution.result.state.entities.get("player")
         self.metrics.record_turn(
@@ -717,8 +769,6 @@ class Stage03App:
         self._post_execute_events = ()
         self._post_execute_scene = AppScene.BATTLE
         self._pending_reward_index = None
-        self.tutorial.begin_level_two()
-        self._sync_tutorial_metrics()
         self._snapshot_metrics()
         self.audio.play_music("battle")
         self.audio.play("inverse")
@@ -812,11 +862,27 @@ class Stage03App:
             return
         self.tutorial.advance()
         self._sync_tutorial_metrics()
+        if not self.tutorial.active:
+            self.ui.feedback = ""
 
-    def _skip_tutorial(self) -> None:
-        self.tutorial.skip()
+    def _skip_tutorial_step(self) -> None:
+        self.tutorial.skip_current()
         self._sync_tutorial_metrics()
-        self.ui.feedback = "教学已跳过；F1 状态会保留到本次程序关闭。"
+        if not self.tutorial.active:
+            self.ui.feedback = ""
+
+    def _skip_all_tutorial(self) -> None:
+        self.tutorial.skip_all()
+        self._sync_tutorial_metrics()
+        self.ui.feedback = ""
+
+    def _restart_tutorial(self) -> None:
+        if self.scene is not AppScene.BATTLE or self.execution_active:
+            return
+        self.ui.selected_slot = None
+        self.tutorial.restart()
+        self._sync_tutorial_metrics()
+        self.ui.feedback = "已重新进入模拟教学；战斗状态不会改变。"
 
     def _sync_tutorial_metrics(self) -> None:
         self.metrics.sync_tutorial(self.tutorial.shown, self.tutorial.skipped)
