@@ -15,7 +15,7 @@ EchoZero 是一个使用 Python 开发的“动作 Roguelike + 战术因果编�
 - Stage 04：随机奖励、两次三选一与三条 Build 路线已验收通过；
 - Stage 05：正式 Level 2 `逆相反应堆`、周期规则节点、扫掠体与 Demo Clear 已完成实现验收。
 - Stage 06：竞赛级 UI、事件动画、音频、转场、可访问设置与最终反馈打磨已完成实现验收。
-- Stage 07：开局独立模拟教学、纯净正式对局、离线场次摘要与盲测模板已完成代码侧实现；真人外部盲测待执行。
+- Stage 07：开局独立模拟教学、纯净正式对局、离线场次摘要与 3 名新玩家真人盲测已完成；通关 2/3，Preview / Reverse 理解 3/3，无阻断问题。
 - Final Visual Polish：响应式画布、三拍执行轨、因果改写、Preview ghost、Protocol HUD 与 Reward 获得演出已完成；核心规则与内容未变。
 - Action Roguelike：Seeded 程序地图、BFS 合法性验证、轻量 Behavior Tree、实时动作战斗、Q Tactical Mode、随机三选一、三 Encounter Run、Boss 与轻量局外解锁已完成。
 
@@ -41,7 +41,7 @@ py -3.14 -m venv .venv
 - Action Run 使用高对比“全息训练舱”界面和 56px 大单元格；玩家、追猎体、突进体、校验射手与相位守卫使用不同轮廓，不需要只靠颜色辨认；
 - 每张 Encounter 开场提供 1.65 秒 SYNC WINDOW；Enemy Intent 显示行动倒计时，普通敌人约每 0.96～1.28 秒行动一次，长按移动约每 0.15 秒推进一格；
 - 正式 HUD 只显示玩家化的 Enemy Intent；按 `F3` 可切换答辩技术面板，展示 Selector、Sequence、Condition 与当前 PreparedAction，默认关闭；
-- WASD 或方向键实时移动；鼠标左键或 Space 基础攻击；Shift + WASD/方向键闪避；E 沿当前方向牵引；启动和答辩演示前请切换到英文输入法，窗口失焦后点击游戏窗口即可恢复键盘控制，撞墙会显示“前方受阻”；
+- WASD 或方向键实时移动；鼠标左键或 Space 向面对方向进行四向基础攻击，不支持斜向；Shift + WASD/方向键闪避；E 沿当前方向牵引；启动和答辩演示前请切换到英文输入法，窗口失焦后点击游戏窗口即可恢复键盘控制，撞墙会显示“前方受阻”；
 - 玩家小人会根据逻辑事件播放待机、移动、攻击、闪避、牵引和受击姿态；敌人刀刃、枪口、弹丸与危险区火焰仅负责表现，不改变战斗结算；
 - 按 Q 进入 Tactical Mode：1/2/3 选拍，WASD 写入 Move，Space 写入 Push，E 写入 Pull，F 写入 Shield，Backspace 清空，Enter 执行，Q 返回实时战斗；
 - 每场结束后用 1/2/3、方向键或鼠标选择“协议 / 技能 / 属性”三选一；构筑继承到下一张程序地图，后续遭遇右栏会持续显示已选强化的名称与当前累计效果；
@@ -72,7 +72,7 @@ $env:SDL_VIDEODRIVER = "dummy"
 
 `--smoke-test` 会走完程序 Run 的三场、两次奖励和 Boss 终局，再绘制结果页后退出；`--showcase-smoke-test` 保留原双关卡自动通路。`src/domain` 不导入 pygame；Tactical 的 `preview_turn` 和 `execute_turn` 都调用同一个 `simulate_turn`。
 
-正式运行会在 `logs/session_summary.txt` 覆盖写入不联网、无个人信息的场次摘要，用于记录 Encounter、回合、HP、Build、Retry、Defeat 与引导显示/跳过情况。真人盲测流程见 [Stage07 外部盲测记录](docs/STAGE07_BLIND_TEST.md)。
+正式运行会在 `logs/session_summary.txt` 覆盖写入不联网、无个人信息的场次摘要，用于记录 Encounter、回合、HP、Build、Retry、Defeat 与引导显示/跳过情况。真人盲测流程见 [Stage07 外部盲测记录](docs/STAGE07_BLIND_TEST.md)，完成数据见 [真人盲测汇总](docs/blind-tests/盲测汇总.md)。
 
 三段 BGM 均为项目原创的 10～12 秒程序化多段循环，不使用或截取其他游戏音乐；素材来源记录见 [ASSET_CREDITS.md](ASSET_CREDITS.md)。
 

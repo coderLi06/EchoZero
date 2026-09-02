@@ -262,3 +262,22 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 真实 Windows 人工诊断确认：英文输入法下事件、InputState、移动向量、碰撞、玩家坐标和 Renderer 全链正常；中文输入法状态可能不向 pygame 提供可用游戏按键事件。负责人选择答辩前切换英文输入法作为运行要求，不在本阶段接管或关闭系统输入法。
 
 此修复只改变输入适配层，不修改 `ActionRun.move_player()`、碰撞、冷却、地图或任何战斗结算。
+
+## 27. Figma 规范与 Aseprite 兼容短帧（2026-09-01）
+
+- Figma 文件以当前 pygame 常量和 1280×800 逻辑画布为唯一事实，整理 Cover / Foundations、Action、Tactical、Reward / Build 与 Motion Spec；Figma 只承担设计过程、状态对照和答辩说明，不成为运行时依赖；
+- `tools/build_aseprite_assets.py` 从已批准的 Meowa 64px 母版确定性生成水平 PNG 图集与 Aseprite JSON 标签，统一脚底锚点；本机无需安装 Aseprite即可重建，安装后可继续逐帧编辑；
+- `presentation/action_assets.py` 优先读取图集的 `frameTags`，按姿态和进度返回帧；图集缺失时回退静态 Meowa 素材，Charger 继续复用 Melee 母版；
+- `ActionApp` 已有 LogicEvent 姿态仍是唯一动画输入；Renderer 只选择 Idle / Move / Attack / Dodge / Hurt 或 Prepared / Hit 帧，Reduce Motion 固定主帧；
+- Tactical 的“因果链”只把现有命令序列翻译为玩家文案，不参与 Protocol、伤害、意图取消、Preview 或 Execute。
+
+依赖保持 `LogicEvent / PreparedAction / Command[] → ActionApp 姿态 → ActionSpriteLibrary → Renderer`；领域层不导入 pygame，程序地图、BFS、行为树、奖励和随机规则未修改。
+
+## 28. 真人盲测后的最小可读性闭环（2026-09-02）
+
+- `presentation/action_renderer.py`：地图敌人与右栏意图使用同一组 `E1–E4` 文本编号，避免玩家只能依赖颜色或位置猜测对应关系；
+- Action 教学和常驻操作提示明确攻击只沿面对方向的上、下、左、右四向生效，不支持斜向；
+- `presentation/stage03_renderer.py`：Level 2 持续显示相位锚的触发条件和效果，激活后明确说明“下一回合保持当前执行顺序”；
+- 三项调整均来自 3 份真人盲测中的共性可读性问题，没有根据单份意见修改 Boss 数值、生命、护盾、掉落或关卡规则。
+
+这些变化只增加玩家可见的文本与编号映射，仍由 Renderer 读取现有敌人、意图和规则节点事实；领域层、程序生成、行为树、Preview 与 Execute 保持不变。

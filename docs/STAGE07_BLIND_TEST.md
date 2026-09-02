@@ -1,6 +1,6 @@
 # EchoZero Stage07 外部盲测记录
 
-> 状态：External blind test pending. 本文只提供真人测试流程与记录模板，不包含推测性反馈。
+> 状态：Completed on 2026-09-02。3 名新玩家的原始记录与汇总位于 `docs/blind-tests/`，本文保留测试规则作为验收依据。
 
 ## 测试规则
 
@@ -42,4 +42,4 @@
 - 可能涉及数值的问题（先记录，不现场改数值）：
 - 附件：`logs/session_summary.txt` / 视频 / 截图（可选）：
 
-完成至少 3 名真人盲测后再汇总结论；不得把自动 Smoke Test 计为外部盲测。
+已完成 3 名真人盲测；未将自动 Smoke Test 计为外部盲测。结果为通关 2/3、平均 11.3 分钟、Preview / Reverse 理解 3/3、Phase Anchor 明确理解 2/3、观察者介入 0/3。详细证据见 [`blind-tests/盲测汇总.md`](blind-tests/盲测汇总.md)。

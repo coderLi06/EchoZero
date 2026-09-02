@@ -84,7 +84,7 @@ Stage02 曾由测试 Encounter 验证“牵引→推击→移动”、BFS 射手
 - 首次看到 Build 改写规则：约 1 分 10 秒，第二战第三拍显示 `协议触发 / echo_protocol`；
 - 发现并修复：原鼠标规则无法为“先推开、再牵回”显式选择相邻目标的牵引命令；现增加选槽后按 `E` 牵引最近直线目标，并在 HUD 常驻显示；
 - 复核结果：正式控制路径可通关，Victory、Defeat、Level Clear 与 Restart 均可达；调试信息默认关闭；
-- 后续观察：尚未进行外部新玩家盲测，Stage03 用户验收时应重点观察玩家能否在 60 秒内主动完成第一次换序。
+- 后续观察：2026-09-02 已完成 3 名新玩家外部盲测；Preview / Reverse 均为 3/3 理解，Phase Anchor 明确理解 2/3，结果见 `docs/blind-tests/盲测汇总.md`。
 
 ## 10. Build 展示方案（Stage04）
 
@@ -120,7 +120,7 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 | B | 2 / 动能破阵 | 借墙一次击破扫掠体与守卫 | 零相终局 | 5 | 约 1:55 / 4:35 | Demo Clear，6/6 |
 | C | 3 / 屏障反推 | 主动进入扫掠锁定格，以盾换锚点控制；逆相先盾后推 | 扫掠干涉 | 8 | 约 3:00 / 5:40 | Demo Clear，6/6 |
 
-结论：不存在无解局面；动能是熟练固定路线最快 Build，但依赖墙面；屏障最慢但容错最高；回声行动经济居中。新玩家完整探索仍按项目目标预留 10～14 分钟。外部盲测前不据此调整协议权重。
+结论：不存在无解局面；动能是熟练固定路线最快 Build，但依赖墙面；屏障最慢但容错最高；回声行动经济居中。新玩家完整探索仍按项目目标预留 10～14 分钟。真人盲测的三份数值意见方向不一致，因此答辩前不调整协议权重或战斗数值。
 
 ## 14. Stage06 最终视觉节奏
 
@@ -145,13 +145,13 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - 音频：20 个 cue 与 Menu/Battle/Final 三段程序化循环 BGM 在 dummy 音频设备上完成初始化与逐项播放调用；真实设备缺失测试会安全降级，`M`、`- / +` 可随时控制；主观混音仍应在 Stage07 发布机和现场音箱上复核；
 - 布局：所有主按钮/卡片不小于 48 px，1280×800 下无重叠；Debug 默认关闭；未发现动画阻塞输入或视觉噪声；
 - 性能：600 帧渲染总计约 `1.296 s`，平均 `2.16 ms/frame`，文本缓存稳定在 36 项，满足 60 FPS 预算；
-- 已知 UX 风险：尚未做外部新玩家盲测；Stage07 仅安排盲测、混音和打包机复核，不据此新增玩法。
+- 已知 UX 风险：外部盲测已完成；主要剩余问题是 Phase Anchor 文案、Enemy Intent 归属和四向攻击说明，本轮仅做可见性修复，不新增玩法。
 
 ## 16. Stage07 无口头教学验收路径
 
 正式入口按 `Main Menu → 9 步模拟教学 → 纯净 Level 1 → 两次 Reward → Level 1 Clear → 纯净 Level 2 → Final Encounter → Demo Clear → Restart` 验收。教学一次解释一个当前可见概念，可用鼠标单击或 `Tab` 前进，并可跳过本步或全部跳过；教学结束后不再自动弹出提示，Stable / Reverse 继续由常驻 HUD 和逐拍高亮表达。
 
-自动 Smoke 只验证路径、状态和渲染覆盖，不计为真人盲测。真人测试必须按 `docs/STAGE07_BLIND_TEST.md` 在观察者不提示的条件下执行；当前状态为 `External blind test pending.`。本地 `logs/session_summary.txt` 只辅助定位 Encounter、回合、HP、Build、Retry、Defeat 与引导使用情况，不收集个人信息。
+自动 Smoke 只验证路径、状态和渲染覆盖，未计为真人盲测。2026-09-02 已按 `docs/STAGE07_BLIND_TEST.md` 完成 3 名新玩家测试，观察者介入 0/3，通关 2/3，平均 11.3 分钟；详细结果见 `docs/blind-tests/盲测汇总.md`。
 
 ## 17. Stage07 代码侧历史验收（2026-08-29，已由第 21 节替代）
 
@@ -159,7 +159,7 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - 新增测试覆盖引导只显示一次与跳过持久、标准首回合自然推进、离线摘要和 Level 2 首次失败位置、Shield/Build 文案、失焦、快速点击、48 px 点击区、ESC 与 1600×900 / 1920×1080 窗口容纳；全量为 78 项；
 - 三张 1280×800 原始截图复核了 Level 1 引导、Reward 和 Level 2 引导：提示不遮棋盘，黄色目标描边不覆盖危险语义，逆相紫色、相位锚绿色和红色 Intent 同屏可分；
 - 三 Build 仍按 6 / 5 / 8 回合固定路线通过 Level 2，符合回声规划、动能主动、屏障安全的差异，因此本阶段未调整协议、敌人或 Simulator 数值；
-- 1366×768 等低于逻辑画布高度的窗口已由后续等比逻辑画布缩放覆盖；真人外部盲测与真实音箱主观混音仍待执行。
+- 1366×768 等低于逻辑画布高度的窗口已由后续等比逻辑画布缩放覆盖；真人外部盲测已完成，真实音箱主观混音仍待执行。
 
 ## 18. Final Visual Polish 验收（2026-08-29）
 
@@ -220,3 +220,11 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - 英文输入法下真人按键日志完整通过：`KEYDOWN W → pressed={UP} → vector=(0,-1) → collision=clear → player position changed → Renderer position changed`；短按、长按和多键状态均可见；
 - 中文输入法状态下无法获得可用的游戏移动事件，因此物理 scancode 映射无法在“事件未送达”时补救。负责人确认无需代码修复，现场统一在启动/演示前切换英文输入法；
 - 临时 input-debug 和 `pygame.key.get_pressed()` 旁路已清理，正式版本仍只有事件驱动的一套输入状态；领域移动、碰撞、地图与 Renderer 未修改。
+
+## 25. Figma + Aseprite 升级验收（2026-09-01）
+
+- Figma 交付地址记录于 `docs/FIGMA_ASEPRITE_UPGRADE.md`；Starter 三页上限内完成品牌与 Foundations、Action / Tactical、Reward / Build / Motion 五个核心画板，可用于答辩解释颜色语义、布局与动作节奏；
+- 4 组角色图集均为 768×64 RGBA PNG，玩家标签覆盖 Idle / Move / Attack / Dodge / Hurt，敌人标签覆盖 Idle / Prepared / Attack / Hit / Death；同名 JSON 包含帧区间、时长和脚底锚点；
+- Tactical 首轮截图发现因果链说明贴近第一拍卡片，第二轮将状态并入时间线单行后通过；正式 HUD 不显示内部 Behavior Tree Action；
+- 六状态截图及 1600×900 / 1920×1080 联系表未见裁切、外部内容、异常留白或 Build 文案溢出；
+- 全量 128 项测试通过；Action Run 与 Showcase 的 dummy Smoke、真实 Windows 正式入口 Smoke 均返回 0。Figma 最后一项 Motion 元数据重复读取因 Starter 当日 MCP 限额未执行，但页面截图已在限额前完成。

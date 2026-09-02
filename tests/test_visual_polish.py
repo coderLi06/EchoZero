@@ -97,6 +97,17 @@ def test_internal_ids_are_resolved_to_player_facing_names() -> None:
     assert event_detail_label(event, app.battle_view) == "回声协议"
 
 
+def test_phase_anchor_guidance_explains_trigger_and_effect() -> None:
+    pygame.font.init()
+    app = Stage03App()
+    app._start_level()
+    app._start_next_level()
+    renderer = Stage03Renderer(pygame.Surface(WINDOW_SIZE))
+    renderer.draw(app)
+    visible_text = "\n".join(key[0] for key in renderer.text_cache)
+    assert "相位锚：站上绿色节点，保持当前执行顺序 1 回合" in visible_text
+
+
 def test_responsive_letterbox_and_pointer_mapping_at_required_sizes() -> None:
     pygame.font.init()
     app = Stage03App()

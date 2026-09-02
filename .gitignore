@@ -17,6 +17,8 @@ htmlcov/
 # IDE / editor
 .vscode/
 .idea/
+.workbuddy/
+.workbuddy-ai/
 *.swp
 
 # OS
@@ -29,6 +31,7 @@ build/
 dist/
 *.egg-info/
 artifacts/ppt_build/
+artifacts/meowa_generation/
 *.pptx.inspect.ndjson
 
 # Logs

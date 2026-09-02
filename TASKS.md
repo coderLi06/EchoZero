@@ -1,6 +1,6 @@
 # TASKS——项目任务板
 
-> 更新日期：2026-08-31。优先级：P0 阻断演示；P1 影响核心；P2 优化；P3 延期。
+> 更新日期：2026-09-01。优先级：P0 阻断演示；P1 影响核心；P2 优化；P3 延期。
 
 ## 已确认决策
 
@@ -36,15 +36,26 @@
 
 - [x] P1 周期规则节点；
 - [x] P1 Level 2 与 Boss；
-- [ ] P1 onedir 打包；
+- [x] P1 onedir 打包；验收：PyInstaller 6.22.2 生成 `dist/EchoZero` 与 Windows x64 ZIP，发布版 Action Run / Showcase 两条 Smoke 退出码均为 0；
 - [x] P2 菜单、音效、粒子和可访问设置；
 - [x] P2 一次轻量局外解锁；按冻结范围取消，不进入开发。
 
 ## 开发中
 
+### Figma + Aseprite 最终升级（2026-09-01）
+
+- [x] P1 建立 EchoZero Figma 视觉规范与关键状态稿；评分：界面完成度、设计过程可解释性、答辩展示；验收：以当前 pygame 实现为唯一视觉事实，完成 Cover / Foundations、Action、Tactical、Reward / Build 与 Motion Spec；受 Starter 三页上限将内容分为三个页面，页面截图完成，最后一项 Motion 元数据复核因本日 MCP 额度触顶未重复调用；
+- [x] P1 建立 Aseprite 兼容短帧资产流水线并接入正式 Renderer；评分：动作反馈、素材规范、技术完整度；验收：玩家 Idle / Move / Attack / Dodge / Hurt 与敌人 Prepared / Attack / Hit / Death 使用统一 64px 帧格、脚底锚点、PNG 图集和 JSON 元数据；本机未安装 Aseprite，仓库脚本可确定性重建，Renderer 缺失时回退静态母版；
+- [x] P1 完成新版六状态视觉 QA、响应式复核与全量回归；评分：演示稳定性、可读性；验收：首页、Action、Tactical、Reward、Build、Boss 完成两轮截图，首轮发现因果链文案贴近卡片并回修；1280×800 / 1600×900 / 1920×1080 无裁切；盲测闭环后 130 项测试、Action / Showcase 的 dummy 与真实 Windows Smoke 均通过；
+
+### Meowa 几何科幻素材与 UI 统一（2026-09-01）
+
+- [x] P1 使用 Meowa game-assets 生成并接入统一的玩家、近战体、突进体、射手、守卫及精英变体素材；评分：视觉完成度、敌我辨识、答辩展示；验收：64px 透明像素素材在 56px 战场格内保持清晰轮廓，颜色与 Enemy Intent 语义一致，原程序化方向、武器、Hit Flash、死亡反馈继续可读；
+- [x] P1 使用 Meowa UI 风格板统一菜单、HUD、Tactical、Reward、Build 与结算的面板边界和图标语言；评分：品牌一致性、信息层级、完成度；验收：保持现有布局与中文文案，不修改玩法、程序地图、BFS、Behavior Tree、战斗数值、Seed 或奖励规则；已覆盖首页、Action、Tactical、Reward、Build、Boss 和 1280×800、1600×900、1920×1080，完成一轮截图回修；125 项全量测试、Action/Showcase Windows Smoke 均通过。
+
 ### 课程任务材料验收（2026-08-31）
 
-- [x] P0 对照 2026-08-27～2026-08-31 课程任务安排核验交付物并补齐可提交材料；评分：初验完整度、过程可追溯性、测试可信度；验收：形成独立竞品分析、每日工作日志、功能测试与初验报告、逐日完成矩阵；125 项全量测试、Action/Showcase 的 dummy 与真实 Windows 窗口 Smoke 均通过；外部考试/人工盲测/发布机检查如实标注为待负责人执行，未虚报完成；
+- [x] P0 对照 2026-08-27～2026-08-31 课程任务安排核验交付物并补齐可提交材料；评分：初验完整度、过程可追溯性、测试可信度；验收：形成独立竞品分析、每日工作日志、功能测试与初验报告、逐日完成矩阵；125 项全量测试、Action/Showcase 的 dummy 与真实 Windows 窗口 Smoke 均通过；当时尚未执行的外部考试、人工盲测与发布机检查均如实标注，后续盲测和发布包验证已在对应任务闭环；
 
 ### Action Roguelike + 战术因果编排（2026-08-30）
 
@@ -81,7 +92,7 @@
 - [x] P1 增加 Slot hover/160 ms 交换、数字闪色、Encounter 脉冲与 Reverse 翻转；验收：Reduce Motion 均有短时或静态 fallback；
 - [x] P0 完成 12 张最终截图 QA、85 项自动化测试与正式入口 Smoke；验收：Stage01～07 无回归，固定 Seed 与 Preview == Execute 保持。
 
-### Stage 07：外部盲测准备、UX 与新玩家引导（代码侧完成，真人盲测待执行）
+### Stage 07：外部盲测、UX 与新玩家引导（已完成）
 
 - [x] P0 Level 1 就地引导；历史实现已完成，2026-08-30 由开局独立模拟教学替代，正式对局不再自动弹出；
 - [x] P0 Level 2 教学；历史实现已完成，2026-08-30 改为依靠常驻规则 HUD，不再在正式 Level 2 自动弹出；
@@ -89,7 +100,8 @@
 - [x] P1 Build 数值复核；评分：策略；验收：三条固定路线继续以 6 / 5 / 8 回合通过 Level 2，无死路线或统一必选项，因此不调整数值；
 - [x] P1 离线场次摘要与盲测模板；评分：可验证性；验收：无联网和隐私数据，记录 Encounter、回合、HP、Build、Retry、Defeat、引导状态及 Level 2 首次失败；
 - [x] P2 输入与可访问性复核；评分：稳定性；验收：保留 Reduce Motion、Mute/Volume、ESC/Restart，新增失焦与快速点击保护；
-- [ ] P0 真人外部盲测；验收：按 `docs/STAGE07_BLIND_TEST.md` 无口头教学执行并回填真实反馈；当前 `External blind test pending.`；
+- [x] P0 真人外部盲测；验收：3 名新玩家无口头教学执行，观察者介入 0/3，通关 2/3，平均 11.3 分钟，Preview / Reverse 理解 3/3，Phase Anchor 明确理解 2/3；原始记录与汇总见 `docs/blind-tests/`；
+- [x] P1 根据盲测完成最小 UX 闭环；评分：易懂性、演示稳定性；验收：明确“相位锚保持当前执行顺序 1 回合”，敌人与 HUD Intent 共用 E1–E4 文字编号，教学与 HUD 明确基础攻击为四向；不改战斗数值、AI 或结算。
 
 ### Stage 06：竞赛级表现与反馈打磨（已完成实现验收）
 
@@ -150,7 +162,7 @@
 - [x] Stage 04 加权随机奖励池、两次三选一、8 个协议、三条 Build 路线与 47 项自动化测试。
 - [x] Stage 05 逆相反应堆三遭遇、周期规则节点、扫掠体、最终守卫、双关卡 Demo Clear 与 58 项自动化测试。
 - [x] Stage 06 统一 UI、事件动画、机制反馈、20 个合成音效、3 段程序化 BGM、可访问设置、转场与 Demo Clear 打磨，以及 70 项自动化测试。
-- [x] Stage 07 就地新手引导、Level 2 规则教学、Reward 联动可读性、离线场次摘要、盲测记录模板、UX 稳定性保护与 78 项自动化测试；真人外部盲测待执行。
+- [x] Stage 07 就地新手引导、Level 2 规则教学、Reward 联动可读性、离线场次摘要、UX 稳定性保护与 3 名新玩家真人盲测已完成；结果见 `docs/blind-tests/盲测汇总.md`。
 
 ## Bug
 

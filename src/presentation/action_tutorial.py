@@ -35,7 +35,7 @@ ACTION_TUTORIAL_STEPS = (
     ActionTutorialStep(
         "attack",
         "攻击、闪避与牵引",
-        "左键或 Space 攻击并击退；Shift+WASD 闪避；E 沿面对方向牵引敌人。冷却条就绪后可再次使用。",
+        "左键或 Space 向面对方向进行四向攻击并击退（不支持斜向）；Shift+WASD 闪避；E 沿面对方向牵引敌人。冷却条就绪后可再次使用。",
         "action_controls",
     ),
     ActionTutorialStep(

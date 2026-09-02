@@ -243,6 +243,21 @@ def test_action_renderer_all_core_scenes_draw_without_clipping(tmp_path: Path) -
         pygame.quit()
 
 
+def test_action_renderer_links_enemy_intent_and_explains_attack_direction(tmp_path: Path) -> None:
+    pygame.font.init()
+    renderer = ActionRenderer(pygame.Surface((1280, 800)))
+    app = ActionApp(seed=10303, meta_path=tmp_path / "meta.json")
+    app._request_new_run()
+    app.tutorial.skip_all()
+    app._finish_action_tutorial()
+    renderer.draw(app)
+    visible_text = "\n".join(key[0] for key in renderer.text_cache)
+    assert "SPACE 四向攻击" in visible_text
+    assert app.run_state is not None
+    first_enemy = app.run_state.active_enemies[0]
+    assert f"E1  {first_enemy.display_name}" in visible_text
+
+
 def test_action_ui_targets_are_large_and_tactical_has_escape() -> None:
     targets = (
         NEW_RUN_RECT,

@@ -22,6 +22,7 @@ from src.presentation.action_art import (
     draw_unit_icon,
     draw_wall_tile,
 )
+from src.presentation.action_assets import ActionSpriteLibrary, draw_meowa_unit
 
 WINDOW_SIZE = (1280, 800)
 CELL_SIZE = 56
@@ -118,6 +119,7 @@ class ActionRenderer:
         self.viewport = pygame.Rect((0, 0), WINDOW_SIZE)
         self.fonts: dict[tuple[int, bool, str], pygame.font.Font] = {}
         self.text_cache: dict[tuple[str, int, tuple[int, int, int], bool, str], pygame.Surface] = {}
+        self.sprites = ActionSpriteLibrary()
         self.update_viewport_layout(output)
 
     def update_viewport_layout(self, output: pygame.Surface | None = None) -> None:
@@ -214,8 +216,7 @@ class ActionRenderer:
         if phase is ActionRunPhase.ACTION and run.encounter_elapsed < run.ENCOUNTER_GRACE:
             remaining = max(0.0, run.ENCOUNTER_GRACE - run.encounter_elapsed)
             banner = pygame.Rect(278, 148, 364, 48)
-            pygame.draw.rect(self.screen, (29, 58, 70), banner, border_radius=8)
-            pygame.draw.rect(self.screen, COLORS["cyan"], banner, 2, border_radius=8)
+            self._panel(banner, (29, 58, 70), COLORS["cyan"], 2, 8, COLORS["cyan"])
             self._center(
                 f"同步窗口  {remaining:0.1f} 秒  ·  先移动观察，Q 可冻结",
                 14,
@@ -255,8 +256,7 @@ class ActionRenderer:
             run.map.width * CELL_SIZE + 16,
             run.map.height * CELL_SIZE + 16,
         )
-        pygame.draw.rect(self.screen, (18, 31, 43), board, border_radius=10)
-        pygame.draw.rect(self.screen, COLORS["border"], board, 2, border_radius=10)
+        self._panel(board, (18, 31, 43), COLORS["border"], 2, 8, COLORS["cyan_dark"])
         for y in range(run.map.height):
             for x in range(run.map.width):
                 pos = GridPos(x, y)
@@ -308,6 +308,14 @@ class ActionRenderer:
                 pygame.draw.circle(self.screen, COLORS["text"], end, 3)
         for entity in run.state.entities.values():
             self._entity(app, entity)
+        for index, enemy in enumerate(run.active_enemies[:4], start=1):
+            if enemy.entity_id not in run.state.entities:
+                continue
+            rect = self.cell_rect(enemy.pos)
+            badge_center = (rect.left + 12, rect.top + 12)
+            pygame.draw.circle(self.screen, COLORS["background"], badge_center, 11)
+            pygame.draw.circle(self.screen, COLORS["danger"], badge_center, 11, 2)
+            self._center(f"E{index}", 9, COLORS["text"], badge_center, True, "data")
         if app.dodge_trail is not None and app.dodge_trail[2] > now:
             start = self.cell_rect(app.dodge_trail[0]).center
             end = self.cell_rect(app.dodge_trail[1]).center
@@ -338,17 +346,41 @@ class ActionRenderer:
         if entity.faction is Faction.PLAYER:
             now = pygame.time.get_ticks()
             pose, progress = app.player_pose_frame(now)
-            draw_player_actor(
-                self.screen,
-                rect.center,
-                20,
-                pose,
-                app.run_state.facing.delta,
-                progress,
-                COLORS["cyan"],
-                COLORS["text"],
-                flash,
+            facing = app.run_state.facing.delta
+            animation = pose if pose in {"idle", "move", "attack", "dodge", "hurt"} else "attack"
+            sprite = self.sprites.get(
+                "player",
+                facing,
+                flash=flash,
+                animation=animation,
+                progress=0.0 if app.reduced_motion else progress,
             )
+            if sprite is None:
+                draw_player_actor(
+                    self.screen,
+                    rect.center,
+                    20,
+                    pose,
+                    facing,
+                    progress,
+                    COLORS["cyan"],
+                    COLORS["text"],
+                    flash,
+                )
+            else:
+                dx, dy = facing
+                impulse = 4 if pose in {"attack", "dodge"} else 0
+                bob = 1 if pose == "move" and progress > 0.5 else 0
+                draw_meowa_unit(
+                    self.screen,
+                    sprite,
+                    (rect.centerx + dx * impulse, rect.centery + dy * impulse - bob),
+                    size=50,
+                    accent=COLORS["cyan"],
+                )
+                breath = 0 if app.reduced_motion else (now // 280) % 2
+                pygame.draw.circle(self.screen, COLORS["cyan_dark"], rect.center, 23 + breath, 1)
+                self._diamond(rect.center, 4, COLORS["cyan"], 0)
             if pose == "attack":
                 start = rect.center
                 dx, dy = app.run_state.facing.delta
@@ -361,19 +393,51 @@ class ActionRenderer:
                 "ranged": COLORS["violet"],
                 "warden": COLORS["success"],
             }.get(entity.enemy_kind, COLORS["danger"])
-            draw_unit_icon(
-                self.screen,
-                rect.center,
-                20,
-                entity.enemy_kind or "melee",
-                color,
-                COLORS["text"],
-                flash,
-            )
             prepared = app.run_state.prepared_actions.get(entity.entity_id)
+            facing = (0, 1)
+            if prepared is not None:
+                delta_x = prepared.target_pos.x - entity.pos.x
+                delta_y = prepared.target_pos.y - entity.pos.y
+                facing = (
+                    (1 if delta_x > 0 else -1, 0)
+                    if abs(delta_x) >= abs(delta_y) and delta_x != 0
+                    else (0, 1 if delta_y > 0 else -1)
+                )
+            remaining = max(0.0, app.run_state.enemy_timers.get(entity.entity_id, 0.0))
+            animation = "prepared" if prepared is not None and remaining < 0.45 else "idle"
+            animation_progress = (
+                0.0
+                if app.reduced_motion
+                else ((1.0 - remaining / 0.45) if animation == "prepared" else (pygame.time.get_ticks() % 560) / 560)
+            )
+            sprite = self.sprites.get(
+                entity.enemy_kind or "melee",
+                facing,
+                flash=flash,
+                animation=animation,
+                progress=animation_progress,
+            )
+            if sprite is None:
+                draw_unit_icon(
+                    self.screen,
+                    rect.center,
+                    20,
+                    entity.enemy_kind or "melee",
+                    color,
+                    COLORS["text"],
+                    flash,
+                )
+            else:
+                draw_meowa_unit(
+                    self.screen,
+                    sprite,
+                    rect.center,
+                    size=50 if entity.enemy_kind != "warden" else 54,
+                    accent=color,
+                    elite=app.run_state.encounter_index > 0 or entity.enemy_kind == "warden",
+                )
             if prepared is not None:
                 target = self.cell_rect(prepared.target_pos).center
-                remaining = max(0.0, app.run_state.enemy_timers.get(entity.entity_id, 0.0))
                 if remaining < 0.45:
                     pulse = 24 + round((1.0 - remaining / 0.45) * 6)
                     pygame.draw.circle(self.screen, color, rect.center, pulse, 2)
@@ -397,8 +461,9 @@ class ActionRenderer:
         run = app.run_state
         player = run.player
         panel = pygame.Rect(PANEL_X - 16, 32, 324, 710)
-        pygame.draw.rect(self.screen, COLORS["surface"], panel, border_radius=6)
-        pygame.draw.rect(self.screen, COLORS["border"], panel, 2, border_radius=6)
+        self._panel(panel, COLORS["surface"], COLORS["border"], 2, 12, COLORS["cyan"])
+        pygame.draw.rect(self.screen, COLORS["cyan"], pygame.Rect(panel.x, 66, 3, 116))
+        pygame.draw.rect(self.screen, COLORS["violet"], pygame.Rect(panel.x, 478, 3, 178))
         self._text_at("实时战斗", 15, COLORS["cyan"], (PANEL_X, 48), True)
         self._text_at("ACTION COMBAT", 10, COLORS["muted"], (PANEL_X + 194, 53), True, "data")
         hp = f"{player.hp}/{player.max_hp}" if player is not None else "0/0"
@@ -409,19 +474,19 @@ class ActionRenderer:
         self._meter("闪避", run.dodge_cooldown, run.dodge_cooldown_base, (PANEL_X, 140))
         self._meter("牵引技能", run.skill_cooldown, 2.2, (PANEL_X, 170))
         self._meter("战术模式 [Q]", run.tactical_cooldown, run.TACTICAL_COOLDOWN, (PANEL_X, 200))
-        self._text_at("WASD / 方向键 移动  ·  SPACE 攻击", 12, COLORS["text"], (PANEL_X, 236))
+        self._text_at("WASD / 方向键 移动  ·  SPACE 四向攻击", 12, COLORS["text"], (PANEL_X, 236))
         self._text_at("SHIFT+方向键 闪避  ·  E 牵引  ·  Q 战术", 11, COLORS["muted"], (PANEL_X, 258))
         pygame.draw.line(self.screen, COLORS["border"], (PANEL_X, 286), (PANEL_X + 290, 286), 1)
         self._text_at("敌方意图", 13, COLORS["danger"], (PANEL_X, 304), True)
         self._text_at("ENEMY INTENT", 9, COLORS["muted"], (PANEL_X + 190, 309), True, "data")
         y = 332
-        for enemy in run.active_enemies[:4]:
+        for index, enemy in enumerate(run.active_enemies[:4], start=1):
             action = run.prepared_actions.get(enemy.entity_id)
             label = self._intent_label(action.label if action is not None else "")
             timer = max(0.0, run.enemy_timers.get(enemy.entity_id, 0.0))
-            pygame.draw.rect(self.screen, (39, 48, 64), pygame.Rect(PANEL_X, y, 290, 26), border_radius=3)
+            self._panel(pygame.Rect(PANEL_X, y, 290, 26), (39, 48, 64), COLORS["border"], 1, 4, COLORS["danger"])
             self._text_at(f"{timer:0.1f}s", 11, COLORS["danger"], (PANEL_X + 8, y + 6), True, "data")
-            self._text_at(f"{enemy.display_name}  →  {label}", 12, COLORS["text"], (PANEL_X + 56, y + 5), True)
+            self._text_at(f"E{index}  {enemy.display_name}  →  {label}", 12, COLORS["text"], (PANEL_X + 56, y + 5), True)
             y += 31
         pygame.draw.line(self.screen, COLORS["border"], (PANEL_X, 468), (PANEL_X + 290, 468), 1)
         self._text_at("本局构筑", 13, COLORS["violet"], (PANEL_X, 486), True)
@@ -457,8 +522,7 @@ class ActionRenderer:
             )
 
         panel = pygame.Rect(48, 632, 1184, 120)
-        pygame.draw.rect(self.screen, COLORS["surface"], panel, border_radius=12)
-        pygame.draw.rect(self.screen, COLORS["warning"], panel, 3, border_radius=12)
+        self._panel(panel, COLORS["surface"], COLORS["warning"], 3, 14, COLORS["warning"])
         current, total = app.tutorial.progress
         self._text_at(
             f"TRAINING  {current}/{total}",
@@ -482,7 +546,7 @@ class ActionRenderer:
         self._text_at("TAB / ENTER 继续   SHIFT+TAB 返回   F1 全部跳过   ESC 退出教学", 11, COLORS["muted"], (804, 716), False, "data")
 
     def _tutorial_mock_board(self) -> None:
-        pygame.draw.rect(self.screen, COLORS["surface"], TUTORIAL_BOARD_RECT, border_radius=10)
+        self._panel(TUTORIAL_BOARD_RECT, COLORS["surface"], COLORS["border"], 1, 10, COLORS["warning"])
         for y in range(7):
             for x in range(13):
                 rect = pygame.Rect(52 + x * 62, 144 + y * 62, 62, 62)
@@ -508,12 +572,11 @@ class ActionRenderer:
 
     def _tutorial_mock_hud(self) -> None:
         panel = pygame.Rect(PANEL_X - 16, 56, 324, 564)
-        pygame.draw.rect(self.screen, COLORS["surface"], panel, border_radius=12)
-        pygame.draw.rect(self.screen, COLORS["border"], panel, 2, border_radius=12)
+        self._panel(panel, COLORS["surface"], COLORS["border"], 2, 12, COLORS["warning"])
         self._text_at("实时战斗", 14, COLORS["cyan"], (PANEL_X, 68), True)
         self._text_at("核心 8/8 · 护盾 0", 19, COLORS["text"], (PANEL_X, 100), True)
         self._text_at("WASD  实时移动", 15, COLORS["text"], (PANEL_X, 176), True)
-        self._text_at("SPACE  攻击并击退", 14, COLORS["text"], (PANEL_X, 222))
+        self._text_at("SPACE  四向攻击并击退", 14, COLORS["text"], (PANEL_X, 222))
         self._text_at("SHIFT+WASD 闪避 · E 牵引", 13, COLORS["text"], (PANEL_X, 252))
         self._text_at("敌方意图", 12, COLORS["danger"], (PANEL_X, 314), True)
         self._text_at("追猎体  →  追击", 15, COLORS["text"], (PANEL_X, 344), True)
@@ -521,13 +584,19 @@ class ActionRenderer:
         labels = ("1  位移", "2  推击", "3  空拍")
         for index, label in enumerate(labels):
             rect = pygame.Rect(PANEL_X, 450 + index * 36, 308, 32)
-            pygame.draw.rect(self.screen, COLORS["surface_high"], rect, border_radius=7)
-            pygame.draw.rect(self.screen, COLORS["cyan"] if index == 0 else COLORS["border"], rect, 2, border_radius=7)
+            self._panel(
+                rect,
+                COLORS["surface_high"],
+                COLORS["cyan"] if index == 0 else COLORS["border"],
+                2,
+                5,
+                COLORS["cyan"] if index == 0 else None,
+            )
             self._text_at(label, 12, COLORS["text"], (rect.x + 10, rect.y + 8), True)
         self._text_at("预演 · 核心 8 · 敌人 1", 11, COLORS["cyan"], (PANEL_X, 562), True)
 
     def _tutorial_mock_rewards(self) -> None:
-        pygame.draw.rect(self.screen, COLORS["surface_high"], TUTORIAL_REWARD_RECT, border_radius=10)
+        self._panel(TUTORIAL_REWARD_RECT, COLORS["surface_high"], COLORS["border"], 1, 8, COLORS["warning"])
         labels = (
             ("协议", COLORS["violet"]),
             ("技能", COLORS["cyan"]),
@@ -535,8 +604,7 @@ class ActionRenderer:
         )
         for index, (label, color) in enumerate(labels):
             rect = pygame.Rect(PANEL_X + 6 + index * 98, 554, 92, 50)
-            pygame.draw.rect(self.screen, COLORS["surface_high"], rect, border_radius=8)
-            pygame.draw.rect(self.screen, color, rect, 2, border_radius=8)
+            self._panel(rect, COLORS["surface_high"], color, 2, 6, color)
             self._center(label, 10, color, rect.center, True, "data")
 
     @staticmethod
@@ -575,14 +643,16 @@ class ActionRenderer:
                     1,
                 )
         panel = pygame.Rect(PANEL_X - 16, 290, 324, 430)
-        pygame.draw.rect(self.screen, (19, 29, 48), panel, border_radius=6)
-        pygame.draw.rect(self.screen, COLORS["cyan"], panel, 3, border_radius=6)
+        self._panel(panel, (19, 29, 48), COLORS["cyan"], 3, 12, COLORS["cyan"])
+        pygame.draw.rect(self.screen, COLORS["cyan"], pygame.Rect(panel.x, panel.y + 18, 3, 108))
         self._text_at("战术模式", 17, COLORS["cyan"], (PANEL_X, 308), True)
         self._text_at("时间冻结 · 敌方意图已锁定", 12, COLORS["muted"], (PANEL_X, 334), True)
+        chain_label, chain_color = self._tactical_chain(run.commands)
+        chain_name = chain_label.split(" ·", 1)[0]
         self._text_at(
-            f"时间线：{TIMELINE_LABELS.get(run.state.active_timeline_rule.value, run.state.active_timeline_rule.value)}  ·  编辑三拍",
-            13,
-            COLORS["muted"],
+            f"时间线：{TIMELINE_LABELS.get(run.state.active_timeline_rule.value, run.state.active_timeline_rule.value)}  ·  因果链：{chain_name}",
+            12,
+            chain_color,
             (PANEL_X, 358),
         )
         preview = run.preview
@@ -591,9 +661,9 @@ class ActionRenderer:
             hp = player.hp if player is not None else 0
             self._text_at(
                 f"预演结果  核心 {hp}  ·  敌人 {sum(e.faction is Faction.ENEMY for e in preview.state.entities.values())}",
-                15,
+                14,
                 COLORS["cyan"],
-                (PANEL_X, 390),
+                (PANEL_X, 398),
                 True,
                 "data",
             )
@@ -606,8 +676,14 @@ class ActionRenderer:
         }
         for index, rect in enumerate(TACTICAL_SLOT_RECTS):
             selected = app.selected_slot == index
-            pygame.draw.rect(self.screen, COLORS["surface_high"], rect, border_radius=8)
-            pygame.draw.rect(self.screen, COLORS["cyan"] if selected else COLORS["border"], rect, 3 if selected else 1, border_radius=8)
+            self._panel(
+                rect,
+                COLORS["surface_high"],
+                COLORS["cyan"] if selected else COLORS["border"],
+                3 if selected else 1,
+                7,
+                COLORS["cyan"] if selected else None,
+            )
             command = run.commands[index]
             detail = DIRECTION_LABELS.get(command.direction.name, command.direction.name) if command.direction is not None else command.target_entity_id or ""
             self._text_at(f"{index + 1}  {labels[command.command_type]}  {detail}", 15, COLORS["text"], (rect.x + 14, rect.y + 15), True)
@@ -631,8 +707,14 @@ class ActionRenderer:
             draw_rect = rect.inflate(6, 6) if hovered and not app.reduced_motion else rect
             color = REWARD_KIND_COLORS[choice.kind]
             kind_label = REWARD_KIND_LABELS[choice.kind]
-            pygame.draw.rect(self.screen, COLORS["surface"], draw_rect, border_radius=6)
-            pygame.draw.rect(self.screen, color if focused else COLORS["border"], draw_rect, 4 if focused else 2, border_radius=6)
+            self._panel(
+                draw_rect,
+                COLORS["surface"],
+                color if focused else COLORS["border"],
+                4 if focused else 2,
+                14,
+                color,
+            )
             self._reward_glyph(choice.kind, (draw_rect.centerx, draw_rect.y + 36), color)
             self._center(kind_label, 12, color, (draw_rect.centerx, draw_rect.y + 70), True, "data")
             self._center(choice.display_name, 23, COLORS["text"], (draw_rect.centerx, draw_rect.y + 112), True)
@@ -652,6 +734,14 @@ class ActionRenderer:
         shade = pygame.Surface(WINDOW_SIZE, pygame.SRCALPHA)
         shade.fill((4, 9, 16, 205))
         self.screen.blit(shade, (0, 0))
+        self._panel(
+            pygame.Rect(352, 214, 576, 432),
+            COLORS["surface"],
+            COLORS["success"] if victory else COLORS["danger"],
+            2,
+            18,
+            COLORS["success"] if victory else COLORS["danger"],
+        )
         self._center("远征完成" if victory else "信号中断", 52, COLORS["success"] if victory else COLORS["danger"], (640, 272), True, "display")
         self._center(f"种子 {run.seed}  ·  遭遇 {run.encounter_index + 1}/{run.ENCOUNTER_COUNT}", 17, COLORS["muted"], (640, 340), True)
         self._center(run.build_summary, 18, COLORS["violet"], (640, 386))
@@ -684,8 +774,7 @@ class ActionRenderer:
         if run.max_core_bonus > 0:
             entries.append(("属性", "核心扩容", f"最大核心 +{run.max_core_bonus}", COLORS["success"]))
         if not entries:
-            pygame.draw.rect(self.screen, (31, 43, 59), rect, border_radius=4)
-            pygame.draw.rect(self.screen, COLORS["border"], rect, 1, border_radius=4)
+            self._panel(rect, (31, 43, 59), COLORS["border"], 1, 7, COLORS["violet"])
             self._text_at("暂无强化", 15, COLORS["text"], (rect.x + 14, rect.y + 18), True)
             self._text_at("完成遭遇后可选择一项强化", 12, COLORS["muted"], (rect.x + 14, rect.y + 48))
             return
@@ -700,8 +789,8 @@ class ActionRenderer:
             pygame.draw.rect(self.screen, COLORS["violet"], pip)
         for index, (kind, name, effect, color) in enumerate(entries[:2]):
             row = pygame.Rect(rect.x, rect.y + 22 + index * 50, rect.width, 45)
-            pygame.draw.rect(self.screen, (31, 43, 59), row, border_radius=3)
-            pygame.draw.line(self.screen, color, row.topleft, row.bottomleft, 3)
+            self._panel(row, (31, 43, 59), COLORS["border"], 1, 5, color)
+            pygame.draw.line(self.screen, color, (row.x, row.y + 5), (row.x, row.bottom - 5), 3)
             self._text_at(kind, 10, color, (row.x + 10, row.y + 8), True)
             self._text_at(name, 12, COLORS["text"], (row.x + 54, row.y + 5), True)
             self._text_at(effect, 10, COLORS["muted"], (row.x + 54, row.y + 25))
@@ -722,8 +811,7 @@ class ActionRenderer:
         shade.fill((3, 8, 14, 96))
         self.screen.blit(shade, (0, 0))
         panel = pygame.Rect(66, 150, 520, 430)
-        pygame.draw.rect(self.screen, (15, 25, 37), panel, border_radius=4)
-        pygame.draw.rect(self.screen, COLORS["warning"], panel, 2, border_radius=4)
+        self._panel(panel, (15, 25, 37), COLORS["warning"], 2, 10, COLORS["warning"])
         self._text_at("TECHNICAL VIEW  [F3]", 17, COLORS["warning"], (88, 172), True, "data")
         self._text_at("答辩模式 · 正式 HUD 默认关闭", 13, COLORS["muted"], (88, 202))
         pygame.draw.line(self.screen, COLORS["border"], (88, 232), (564, 232), 1)
@@ -731,8 +819,14 @@ class ActionRenderer:
         for index, node in enumerate(nodes):
             x = 90 + index * 116
             box = pygame.Rect(x, 252, 104, 34)
-            pygame.draw.rect(self.screen, COLORS["surface_high"], box, border_radius=3)
-            pygame.draw.rect(self.screen, COLORS["cyan"] if index == 3 else COLORS["border"], box, 1, border_radius=3)
+            self._panel(
+                box,
+                COLORS["surface_high"],
+                COLORS["cyan"] if index == 3 else COLORS["border"],
+                1,
+                4,
+                COLORS["cyan"] if index == 3 else None,
+            )
             self._center(node, 10, COLORS["text"], box.center, True, "data")
             if index < len(nodes) - 1:
                 pygame.draw.line(self.screen, COLORS["border"], (box.right, box.centery), (box.right + 12, box.centery), 1)
@@ -757,8 +851,7 @@ class ActionRenderer:
         self.screen.blit(shade, (0, 0))
         color = REWARD_KIND_COLORS[reward.kind]
         panel = pygame.Rect(380, 242, 520, 300)
-        pygame.draw.rect(self.screen, COLORS["surface"], panel, border_radius=6)
-        pygame.draw.rect(self.screen, color, panel, 3, border_radius=6)
+        self._panel(panel, COLORS["surface"], color, 3, 16, color)
         self._reward_glyph(reward.kind, (panel.centerx, panel.y + 58), color)
         self._center("获得强化", 19, color, (panel.centerx, panel.y + 110), True)
         self._center(reward.display_name, 28, COLORS["text"], (panel.centerx, panel.y + 184), True, "display")
@@ -803,11 +896,25 @@ class ActionRenderer:
     def _meter(self, label: str, remaining: float, maximum: float, pos: tuple[int, int]) -> None:
         self._text_at(label, 11, COLORS["muted"], pos, True, "data")
         rect = pygame.Rect(pos[0] + 94, pos[1] + 2, 196, 10)
-        pygame.draw.rect(self.screen, (43, 54, 72), rect, border_radius=5)
+        pygame.draw.rect(self.screen, (43, 54, 72), rect)
         ready = maximum <= 0 or remaining <= 0
         fill = rect.copy()
         fill.width = rect.width if ready else round(rect.width * (1 - min(1.0, remaining / maximum)))
-        pygame.draw.rect(self.screen, COLORS["success"] if ready else COLORS["cyan"], fill, border_radius=5)
+        pygame.draw.rect(self.screen, COLORS["success"] if ready else COLORS["cyan"], fill)
+        pygame.draw.line(self.screen, COLORS["background"], (rect.centerx, rect.y), (rect.centerx, rect.bottom), 1)
+
+    @staticmethod
+    def _tactical_chain(commands: list[Any]) -> tuple[str, tuple[int, int, int]]:
+        kinds = tuple(command.command_type for command in commands)
+        if kinds == (CommandType.PULL, CommandType.PUSH, CommandType.MOVE):
+            return ("锁断 · 拉近 → 击退 → 脱离", COLORS["violet"])
+        if kinds[:2] == (CommandType.SHIELD, CommandType.PUSH):
+            return ("盾势 · 先防御后反推", COLORS["success"])
+        if kinds[0] is not CommandType.WAIT and kinds[0] is kinds[2]:
+            return ("回声 · 首尾命令呼应", COLORS["violet"])
+        if all(kind is CommandType.WAIT for kind in kinds):
+            return ("未编排 · 选择三拍观察预演", COLORS["muted"])
+        return ("已编排 · 调整顺序比较结果", COLORS["cyan"])
 
     @staticmethod
     def cell_rect(pos: GridPos) -> pygame.Rect:
@@ -862,9 +969,54 @@ class ActionRenderer:
             self.screen.blit(surface, target)
 
     def _button(self, rect: pygame.Rect, label: str, primary: bool) -> None:
-        pygame.draw.rect(self.screen, COLORS["cyan_dark"] if primary else COLORS["surface_high"], rect, border_radius=4)
-        pygame.draw.rect(self.screen, COLORS["cyan"] if primary else COLORS["border"], rect, 3 if primary else 2, border_radius=4)
+        self._panel(
+            rect,
+            COLORS["cyan_dark"] if primary else COLORS["surface_high"],
+            COLORS["cyan"] if primary else COLORS["border"],
+            3 if primary else 2,
+            10,
+            COLORS["cyan"] if primary else None,
+        )
         self._center(label, 17, COLORS["text"], rect.center, True, "data")
+
+    def _panel(
+        self,
+        rect: pygame.Rect,
+        fill: tuple[int, int, int],
+        border: tuple[int, int, int],
+        width: int = 2,
+        cut: int = 10,
+        accent: tuple[int, int, int] | None = None,
+    ) -> None:
+        cut = max(0, min(cut, rect.width // 4, rect.height // 4))
+        points = (
+            (rect.x + cut, rect.y),
+            (rect.right - cut, rect.y),
+            (rect.right, rect.y + cut),
+            (rect.right, rect.bottom - cut),
+            (rect.right - cut, rect.bottom),
+            (rect.x + cut, rect.bottom),
+            (rect.x, rect.bottom - cut),
+            (rect.x, rect.y + cut),
+        )
+        pygame.draw.polygon(self.screen, fill, points)
+        if width > 0:
+            pygame.draw.polygon(self.screen, border, points, width)
+        if accent is not None and rect.width >= 56:
+            pygame.draw.line(
+                self.screen,
+                accent,
+                (rect.x + cut + 4, rect.y + 1),
+                (min(rect.right - cut - 4, rect.x + cut + 34), rect.y + 1),
+                2,
+            )
+            pygame.draw.line(
+                self.screen,
+                accent,
+                (rect.right - cut - 4, rect.bottom - 1),
+                (max(rect.x + cut + 4, rect.right - cut - 24), rect.bottom - 1),
+                2,
+            )
 
     def _diamond(self, center: tuple[int, int], radius: int, color: tuple[int, int, int], width: int) -> None:
         pygame.draw.polygon(

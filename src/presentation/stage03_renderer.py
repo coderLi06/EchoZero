@@ -286,8 +286,13 @@ class Stage03Renderer:
                 effect_pos = actor.pos
             if effect_pos is not None:
                 self._event_effect(active, effect_pos, frame.progress)
-        if anchored:
-            self._text_at("PHASE LOCKED // 规则保持", 13, COLORS["success"], (48, 590), True)
+        if state.rule_nodes:
+            anchor_text = (
+                "相位锚已激活：下一回合保持当前执行顺序"
+                if anchored
+                else "相位锚：站上绿色节点，保持当前执行顺序 1 回合"
+            )
+            self._text_at(anchor_text, 13, COLORS["success"], (48, 590), True)
 
     def _preview_ghosts(self, view: Any, state: Any) -> None:
         overlay = pygame.Surface(WINDOW_SIZE, pygame.SRCALPHA)
@@ -745,7 +750,7 @@ class Stage03Renderer:
         if event is None or event.kind not in {"rule_triggered", "rule_changed", "rule_held"}:
             return
         if event.kind == "rule_held":
-            title, subtitle, color = "PHASE ANCHOR LOCK", "相位锚已激活 · 下一回合规则保持", COLORS["success"]
+            title, subtitle, color = "PHASE ANCHOR LOCK", "相位锚已激活 · 下一回合保持当前执行顺序", COLORS["success"]
         else:
             reverse = event.detail == TimelineRule.REVERSE.value
             title = "INVERSE // 3 → 2 → 1" if reverse else "STABLE // 1 → 2 → 3"
