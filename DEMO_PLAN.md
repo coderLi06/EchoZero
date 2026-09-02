@@ -227,4 +227,4 @@ Level 1 完成后进入独立 `LEVEL 01 CLEAR` 转场，画面显示继承 Build
 - 4 组角色图集均为 768×64 RGBA PNG，玩家标签覆盖 Idle / Move / Attack / Dodge / Hurt，敌人标签覆盖 Idle / Prepared / Attack / Hit / Death；同名 JSON 包含帧区间、时长和脚底锚点；
 - Tactical 首轮截图发现因果链说明贴近第一拍卡片，第二轮将状态并入时间线单行后通过；正式 HUD 不显示内部 Behavior Tree Action；
 - 六状态截图及 1600×900 / 1920×1080 联系表未见裁切、外部内容、异常留白或 Build 文案溢出；
-- 全量 128 项测试通过；Action Run 与 Showcase 的 dummy Smoke、真实 Windows 正式入口 Smoke 均返回 0。Figma 最后一项 Motion 元数据重复读取因 Starter 当日 MCP 限额未执行，但页面截图已在限额前完成。
+- 当时全量 128 项测试通过；Action Run 与 Showcase 的 dummy Smoke、真实 Windows 正式入口 Smoke 均返回 0。2026-09-02 再次回读 Figma Motion 元数据仍被 Starter MCP call limit 阻断，原始结果与唯一收尾步骤见 `docs/FIGMA_MOTION_AUDIT.md`；未虚报节点或关键帧。

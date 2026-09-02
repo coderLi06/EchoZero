@@ -1,6 +1,6 @@
 # EchoZero 素材与版权记录
 
-> 更新日期：2026-09-01。
+> 更新日期：2026-09-02。
 
 ## 项目自制素材
 
@@ -21,6 +21,14 @@
 - 衍生过程：由项目自写 `tools/build_aseprite_assets.py` 确定性生成像素位移、受击染色、意图角标与扫描线消散；
 - 输出：`assets/aseprite/*.png` 与同名 JSON 动画元数据，没有引入第三方游戏素材；
 - 构建机未安装 Aseprite，输出格式可直接导入 Aseprite 继续编辑。
+
+## 外部开源视觉资产
+
+- Orbitron SemiBold：用于 `ECHO // ZERO`、`CAUSALITY REWRITTEN` 等纯英文展示标题；中文标题和正文继续使用系统中文字体，避免缺字；
+- 作者/版权：Copyright 2018 The Orbitron Project Authors，Reserved Font Name “Orbitron”；
+- 来源：[Google Fonts 官方 Orbitron 仓库](https://github.com/googlefonts/orbitron-vf)，字体文件位于 `assets/fonts/orbitron/Orbitron-SemiBold.ttf`；
+- 许可证：SIL Open Font License 1.1，完整文本随项目保存为 `assets/fonts/orbitron/OFL.txt`；允许随软件嵌入与再分发，本项目未修改字体或使用保留名称发布衍生字体；
+- 加载失败时自动回退到 Bahnschrift / 微软雅黑 / 黑体 / Arial，不影响启动和中文显示。
 
 ## 第三方运行库
 

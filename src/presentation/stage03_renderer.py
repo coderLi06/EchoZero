@@ -6,6 +6,8 @@ from typing import Any
 
 import pygame
 
+from src.presentation.fonts import load_ui_font, text_font_role
+
 from src.domain import Command, CommandType, Faction, GridPos, LevelPhase, LogicEvent, TimelineRule
 from src.presentation.battle_view import (
     command_display_label,
@@ -800,20 +802,14 @@ class Stage03Renderer:
     def _font(self, size: int, bold: bool = False, role: str = "body") -> pygame.font.Font:
         key = (size, bold, role)
         if key not in self.fonts:
-            families = {
-                "display": "bahnschriftsemibold,microsoftyahei,simhei,arial",
-                "data": "microsoftyahei,simhei,cascadiamono,consolas",
-                "body": "microsoftyahei,simhei,segoeui,arial",
-            }
-            name = pygame.font.match_font(families.get(role, families["body"]))
-            self.fonts[key] = pygame.font.Font(name, size)
-            self.fonts[key].bold = bold
+            self.fonts[key] = load_ui_font(size, bold, role)
         return self.fonts[key]
 
     def _surface(self, text: str, size: int, color: tuple[int, int, int], bold: bool = False, role: str = "body") -> pygame.Surface:
         key = (text, size, color, bold, role)
         if key not in self.text_cache:
-            self.text_cache[key] = self._font(size, bold, role).render(text, True, color)
+            effective_role = text_font_role(text, role)
+            self.text_cache[key] = self._font(size, bold, effective_role).render(text, True, color)
         return self.text_cache[key]
 
     def _global_status(self, app: Any) -> None:

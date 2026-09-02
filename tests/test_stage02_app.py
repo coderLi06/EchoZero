@@ -4,6 +4,8 @@ from src.stage02_app import Stage02App
 
 def test_stage02_app_executes_previewed_opening_and_restarts() -> None:
     app = Stage02App()
+    assert not hasattr(app, "screen")
+    assert not hasattr(app, "run")
     app._choose_slot(2)
     app._choose_slot(0)
     app._choose_slot(0)

@@ -7,6 +7,8 @@
 - 页面 2：Action Combat 与 Tactical Mode 的 1280×800 可编辑状态稿；
 - 页面 3：Reward / Build 持久反馈与 Sprite Motion Specs。
 
+2026-09-02 再次调用 Figma `get_metadata` 准备回读 Motion 时间线时，Starter 计划仍返回 `You've reached the Figma MCP tool call limit on the Starter plan`。账户核验为 Starter / View seat。该项属于外部账户额度阻断，未伪造节点 ID、关键帧或已完成状态；原始审计记录与额度恢复后的复核步骤见 `FIGMA_MOTION_AUDIT.md`。
+
 Figma Starter 最多 3 页，因此多个状态使用独立画板分组，没有删减设计内容。通用 Material / Simple Design System 与项目的像素战术风冲突，未套用 SaaS 组件。
 
 ## Aseprite 兼容资产

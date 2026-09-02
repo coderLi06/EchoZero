@@ -74,7 +74,13 @@ $env:SDL_VIDEODRIVER = "dummy"
 
 正式运行会在 `logs/session_summary.txt` 覆盖写入不联网、无个人信息的场次摘要，用于记录 Encounter、回合、HP、Build、Retry、Defeat 与引导显示/跳过情况。真人盲测流程见 [Stage07 外部盲测记录](docs/STAGE07_BLIND_TEST.md)，完成数据见 [真人盲测汇总](docs/blind-tests/盲测汇总.md)。
 
-三段 BGM 均为项目原创的 10～12 秒程序化多段循环，不使用或截取其他游戏音乐；素材来源记录见 [ASSET_CREDITS.md](ASSET_CREDITS.md)。
+三段 BGM 均为项目原创的 10～12 秒程序化多段循环，不使用或截取其他游戏音乐；纯英文品牌标题使用随项目分发的 SIL OFL 1.1 Orbitron 字体，中文自动回退系统字体；完整来源见 [ASSET_CREDITS.md](ASSET_CREDITS.md)。
+
+Windows onedir 发布包可由已提交的 Spec 重建：
+
+```powershell
+.\.venv\Scripts\pyinstaller.exe --noconfirm EchoZero.spec
+```
 
 ## 项目结构
 
@@ -88,7 +94,11 @@ src/domain/behavior_tree.py  五类基础节点与三种敌人行为树
 src/domain/action_run.py  实时战斗事实、Build 和完整 Run 循环
 src/presentation/action_tutorial.py  Action Run 九步独立模拟教学状态
 src/presentation/action_art.py  自制代码原生地块、危险区和五类单位轮廓
-src/presentation/action_renderer.py  动作战斗、Intent、Tactical、教学与奖励画面
+src/presentation/action_renderer.py  Action 渲染协调、字体缓存与基础绘制
+src/presentation/action_renderer_world.py  程序地图、单位、Intent 与 HUD
+src/presentation/action_renderer_tutorial.py  Action 九步模拟教学画面
+src/presentation/action_renderer_overlays.py  Tactical、Reward、Build 与结果覆盖层
+src/presentation/fonts.py  Orbitron 英文标题与中文/正文回退
 src/domain/reward.py  可复现的加权候选与合法性过滤
 src/presentation/     pygame 正式渲染、事件动效语义和可降级合成音效
 src/presentation/battle_view.py  只读战斗视图、玩家文案映射与因果结果信号

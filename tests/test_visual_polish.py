@@ -12,6 +12,7 @@ from src.presentation.effects import (
     presentation_frame,
 )
 from src.presentation.stage03_renderer import COLORS, SAFE_TOP, Stage03Renderer, WINDOW_SIZE
+from src.presentation.fonts import ORBITRON_FONT, load_ui_font, text_font_role
 from src.stage03_app import (
     AppScene,
     Stage03App,
@@ -95,6 +96,15 @@ def test_internal_ids_are_resolved_to_player_facing_names() -> None:
         assert banned not in visible_text.lower()
     event = LogicEvent("plugin_triggered", 1, "player", detail="echo_protocol")
     assert event_detail_label(event, app.battle_view) == "回声协议"
+
+
+def test_licensed_display_font_loads_without_replacing_chinese_fallback() -> None:
+    pygame.font.init()
+    assert ORBITRON_FONT.is_file()
+    assert ORBITRON_FONT.stat().st_size > 10_000
+    assert text_font_role("ECHO // ZERO", "display") == "display_latin"
+    assert text_font_role("远征完成", "display") == "display"
+    assert load_ui_font(18, role="display_latin").render("ECHO", True, COLORS["text"]).get_width() > 0
 
 
 def test_phase_anchor_guidance_explains_trigger_and_effect() -> None:

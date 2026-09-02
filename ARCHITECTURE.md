@@ -281,3 +281,13 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - 三项调整均来自 3 份真人盲测中的共性可读性问题，没有根据单份意见修改 Boss 数值、生命、护盾、掉落或关卡规则。
 
 这些变化只增加玩家可见的文本与编号映射，仍由 Renderer 读取现有敌人、意图和规则节点事实；领域层、程序生成、行为树、Preview 与 Execute 保持不变。
+
+## 29. 表现层拆分与历史回归收敛（2026-09-02）
+
+- 原 1032 行 `presentation/action_renderer.py` 按职责拆为协调/基础绘制、世界与 HUD、独立教学、Tactical/Reward/Result 覆盖层及共享布局常量；入口文件 228 行，最大子模块 345 行；
+- 拆分采用无状态表现 Mixin，只复用 `ActionRenderer` 的 Surface、字体缓存和只读 Sprite Library，不新增领域状态、事件或第二套渲染入口；
+- `stage02_app.py` 删除 319 行已退役 pygame UI，缩为历史 Stage02 换序、同源预演和重开测试所需的轻量回归夹具；正式入口从未依赖该文件；
+- Action Run 是正式程序化动作入口，Showcase 是两关机制答辩入口；二者仍服务不同验收路径，但 Tactical Preview / Execute、Command、CombatState 与 LogicEvent 继续共享领域实现；
+- `presentation/fonts.py` 统一 Action / Showcase 字体选择：纯英文展示标题优先使用项目内 Orbitron，中文和正文走系统字体回退。
+
+本轮只调整表现模块和历史测试夹具，不修改战斗、AI、程序地图、奖励、Seed 或结算规则。

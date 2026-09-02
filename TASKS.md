@@ -42,11 +42,19 @@
 
 ## 开发中
 
+### 预评分扣分项闭环（2026-09-02）
+
+- [ ] P1 完成 Figma Motion 元数据回读与证据记录；评分：设计过程完整度；当前阻断：2026-09-02 再次调用仍命中 Starter MCP call limit，账户为 Starter / View；已把原始结果、现有 Motion 证据和额度恢复后的唯一收尾步骤写入 `docs/FIGMA_MOTION_AUDIT.md`，未虚报完成；
+- [x] P1 引入一项明确可再分发的外部视觉资产并接入正式界面；评分：视觉精细度、版权合规；验收：采用 SIL OFL 1.1 的 Orbitron SemiBold 强化纯英文品牌标题，仓库保存字体、许可证、来源与回退路径，中文仍使用系统字体；
+- [x] P1 收敛 Stage02 历史界面与双系统边界；评分：架构清晰度、可维护性；验收：删除不再使用的 319 行 Stage02 pygame 绘制系统，只保留轻量回归夹具，正式运行仍只有 Action Run 与 Showcase 两个入口；
+- [x] P1 拆分 `action_renderer.py`；评分：代码规范、可维护性；验收：按世界/HUD、教学、覆盖层与基础绘制职责拆分，入口文件降至 228 行，最大子模块 345 行，渲染结果与领域规则不变；
+- [x] P1 重建并验证本轮 onedir；评分：发布稳定性；验收：`EchoZero.spec` 固化 data/assets 打包规则，发布目录包含 Orbitron 字体与 OFL，Action Run / Showcase 两条发布版 Smoke 退出码均为 0；
+
 ### Figma + Aseprite 最终升级（2026-09-01）
 
-- [x] P1 建立 EchoZero Figma 视觉规范与关键状态稿；评分：界面完成度、设计过程可解释性、答辩展示；验收：以当前 pygame 实现为唯一视觉事实，完成 Cover / Foundations、Action、Tactical、Reward / Build 与 Motion Spec；受 Starter 三页上限将内容分为三个页面，页面截图完成，最后一项 Motion 元数据复核因本日 MCP 额度触顶未重复调用；
+- [x] P1 建立 EchoZero Figma 视觉规范与关键状态稿；评分：界面完成度、设计过程可解释性、答辩展示；验收：以当前 pygame 实现为唯一视觉事实，完成 Cover / Foundations、Action、Tactical、Reward / Build 与 Motion Spec；受 Starter 三页上限将内容分为三个页面，页面截图完成；Motion 元数据回读作为独立外部阻断项追踪，见 `docs/FIGMA_MOTION_AUDIT.md`；
 - [x] P1 建立 Aseprite 兼容短帧资产流水线并接入正式 Renderer；评分：动作反馈、素材规范、技术完整度；验收：玩家 Idle / Move / Attack / Dodge / Hurt 与敌人 Prepared / Attack / Hit / Death 使用统一 64px 帧格、脚底锚点、PNG 图集和 JSON 元数据；本机未安装 Aseprite，仓库脚本可确定性重建，Renderer 缺失时回退静态母版；
-- [x] P1 完成新版六状态视觉 QA、响应式复核与全量回归；评分：演示稳定性、可读性；验收：首页、Action、Tactical、Reward、Build、Boss 完成两轮截图，首轮发现因果链文案贴近卡片并回修；1280×800 / 1600×900 / 1920×1080 无裁切；盲测闭环后 130 项测试、Action / Showcase 的 dummy 与真实 Windows Smoke 均通过；
+- [x] P1 完成新版六状态视觉 QA、响应式复核与全量回归；评分：演示稳定性、可读性；验收：首页、Action、Tactical、Reward、Build、Boss 完成两轮截图，首轮发现因果链文案贴近卡片并回修；1280×800 / 1600×900 / 1920×1080 无裁切；本轮结构与字体闭环后 131 项测试、Action / Showcase 的 dummy Smoke 均通过；
 
 ### Meowa 几何科幻素材与 UI 统一（2026-09-01）
 
