@@ -1,0 +1,4 @@
+Slides 1-9 preserve the user's current PPTX.
+Slide 10 claims derive from TASKS.md, 每日工作日志.md, docs/blind-tests/盲测汇总.md, docs/FIGMA_ASEPRITE_UPGRADE.md, and docs/FIGMA_MOTION_AUDIT.md.
+Slide 11 outlook is project planning content supplied by the user and bounded by 项目配置.md / ROADMAP.md.
+No web or external image assets added.

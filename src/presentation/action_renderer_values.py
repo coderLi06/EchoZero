@@ -13,11 +13,14 @@ PANEL_X = 916
 NEW_RUN_RECT = pygame.Rect(440, 530, 400, 66)
 SHOWCASE_RECT = pygame.Rect(440, 612, 400, 54)
 REWARD_RECTS = tuple(pygame.Rect(50 + index * 410, 270, 360, 300) for index in range(3))
-TACTICAL_SLOT_RECTS = tuple(
-    pygame.Rect(PANEL_X, 424 + index * 62, 308, 52) for index in range(3)
+TACTICAL_ACTION_RECTS = tuple(
+    pygame.Rect(PANEL_X, 320 + index * 50, 308, 48) for index in range(7)
 )
-TACTICAL_EXECUTE_RECT = pygame.Rect(PANEL_X, 618, 190, 58)
-TACTICAL_CANCEL_RECT = pygame.Rect(PANEL_X + 200, 618, 108, 58)
+TACTICAL_SLOT_RECTS = TACTICAL_ACTION_RECTS[:3]
+TACTICAL_UP_RECT = pygame.Rect(PANEL_X, 682, 48, 48)
+TACTICAL_DOWN_RECT = pygame.Rect(PANEL_X + 56, 682, 48, 48)
+TACTICAL_EXECUTE_RECT = pygame.Rect(PANEL_X + 112, 682, 124, 48)
+TACTICAL_CANCEL_RECT = pygame.Rect(PANEL_X + 244, 682, 64, 48)
 ACTION_TUTORIAL_REPLAY_RECT = pygame.Rect(PANEL_X + 88, 682, 220, 48)
 ACTION_TUTORIAL_BACK_RECT = pygame.Rect(804, 656, 120, 48)
 ACTION_TUTORIAL_SKIP_STEP_RECT = pygame.Rect(936, 656, 132, 48)
@@ -29,28 +32,28 @@ TUTORIAL_MOVEMENT_RECT = pygame.Rect(PANEL_X, 158, 308, 42)
 TUTORIAL_ACTION_RECT = pygame.Rect(PANEL_X, 208, 308, 68)
 TUTORIAL_INTENT_RECT = pygame.Rect(PANEL_X, 294, 308, 82)
 TUTORIAL_TACTICAL_RECT = pygame.Rect(PANEL_X, 388, 308, 46)
-TUTORIAL_TIMELINE_RECT = pygame.Rect(PANEL_X, 440, 308, 102)
+TUTORIAL_TIMELINE_RECT = pygame.Rect(PANEL_X, 438, 308, 158)
 TUTORIAL_REWARD_RECT = pygame.Rect(PANEL_X, 548, 308, 62)
 
 COLORS = {
-    "background": (11, 20, 31),
-    "surface": (24, 38, 53),
-    "surface_high": (35, 54, 72),
-    "border": (86, 116, 140),
-    "text": (249, 252, 255),
-    "muted": (197, 214, 228),
-    "cyan": (78, 226, 255),
-    "cyan_dark": (24, 91, 113),
-    "violet": (198, 153, 255),
-    "danger": (255, 104, 112),
-    "warning": (255, 202, 92),
-    "success": (92, 235, 173),
-    "floor_a": (38, 64, 83),
-    "floor_b": (43, 71, 91),
-    "floor_line": (61, 93, 116),
-    "wall": (15, 25, 35),
-    "wall_edge": (43, 59, 73),
-    "hazard": (126, 47, 53),
+    "background": (20, 18, 14),
+    "surface": (42, 39, 31),
+    "surface_high": (61, 55, 42),
+    "border": (132, 114, 78),
+    "text": (232, 222, 185),
+    "muted": (174, 163, 128),
+    "cyan": (215, 171, 82),
+    "cyan_dark": (91, 75, 42),
+    "violet": (177, 112, 68),
+    "danger": (201, 78, 57),
+    "warning": (231, 188, 84),
+    "success": (143, 162, 91),
+    "floor_a": (55, 53, 42),
+    "floor_b": (62, 59, 46),
+    "floor_line": (83, 77, 57),
+    "wall": (27, 25, 21),
+    "wall_edge": (76, 67, 48),
+    "hazard": (119, 52, 40),
 }
 REWARD_KIND_LABELS = {
     RewardKind.PROTOCOL: "协议",
@@ -68,6 +71,7 @@ INTENT_LABELS = {
     "SHOOT": "瞄准射击",
     "CHARGE": "准备突袭",
     "PHASE BURST": "相位爆发",
+    "PHASE CROSS": "十字相位爆发",
     "KEEP RANGE": "拉开距离",
     "STRAFE": "侧向机动",
     "REPOSITION": "重新部署",

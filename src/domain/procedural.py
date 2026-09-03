@@ -155,7 +155,7 @@ class ProceduralEncounterGenerator:
                 f"enemy_{index + 1}",
                 "warden" if encounter_index >= 2 and index == 0 else enemy_kinds[index % 3],
                 pos,
-                7 if encounter_index >= 2 and index == 0 else 3 + encounter_index,
+                12 if encounter_index >= 2 and index == 0 else 3 + encounter_index,
             )
             for index, pos in enumerate(selected)
         )

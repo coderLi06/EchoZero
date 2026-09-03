@@ -40,6 +40,11 @@ class RewardKind(str, Enum):
     STAT = "stat"
 
 
+class AttackMode(str, Enum):
+    MELEE = "melee"
+    RANGED = "ranged"
+
+
 @dataclass(frozen=True)
 class ActionReward:
     reward_id: str
@@ -47,6 +52,31 @@ class ActionReward:
     display_name: str
     description: str
     protocol_id: str = ""
+
+
+@dataclass(frozen=True)
+class TacticalAction:
+    action_id: str
+    display_name: str
+    command: Command
+
+
+@dataclass(frozen=True)
+class TacticalEnemyDelta:
+    entity_id: str
+    number: int
+    display_name: str
+    before_hp: int
+    after_hp: int
+    damage: int
+
+
+@dataclass(frozen=True)
+class TacticalPreviewSummary:
+    player_before_hp: int
+    player_after_hp: int
+    player_max_hp: int
+    enemy_deltas: tuple[TacticalEnemyDelta, ...]
 
 
 UPGRADE_REWARDS = (
@@ -77,7 +107,8 @@ class ActionRun:
         self.meta_core_bonus = max(0, meta_core_bonus)
         self.encounter_index = 0
         self.build: dict[str, int] = {}
-        self.attack_damage = 1
+        self.attack_damage = 2
+        self.attack_mode = AttackMode.MELEE
         self.max_core_bonus = 0
         self.attack_cooldown_base = 0.34
         self.dodge_cooldown_base = 1.35
@@ -96,6 +127,8 @@ class ActionRun:
         self.commands = [
             Command("player", CommandType.WAIT, slot) for slot in range(1, 4)
         ]
+        self.tactical_actions: list[TacticalAction] = []
+        self.enemy_numbers: dict[str, int] = {}
         self.prepared_actions: dict[str, PreparedAction] = {}
         self.enemy_timers: dict[str, float] = {}
         self.enemy_special_timers: dict[str, float] = {}
@@ -147,6 +180,43 @@ class ActionRun:
         if self.phase is not ActionRunPhase.TACTICAL:
             return None
         return preview_turn(self.state, self.commands)
+
+    @property
+    def tactical_preview_summary(self) -> TacticalPreviewSummary | None:
+        result = self.preview
+        player = self.player
+        if result is None or player is None:
+            return None
+        preview_player = result.state.entities.get(player.entity_id)
+        after_hp = preview_player.hp if preview_player is not None else 0
+        deltas: list[TacticalEnemyDelta] = []
+        for enemy in sorted(self.active_enemies, key=lambda item: self.enemy_number(item.entity_id)):
+            preview_enemy = result.state.entities.get(enemy.entity_id)
+            enemy_after_hp = preview_enemy.hp if preview_enemy is not None else 0
+            damage = max(0, enemy.hp - enemy_after_hp)
+            if damage <= 0:
+                continue
+            deltas.append(
+                TacticalEnemyDelta(
+                    enemy.entity_id,
+                    self.enemy_number(enemy.entity_id),
+                    enemy.display_name,
+                    enemy.hp,
+                    enemy_after_hp,
+                    damage,
+                )
+            )
+        return TacticalPreviewSummary(
+            player.hp, after_hp, player.max_hp, tuple(deltas)
+        )
+
+    def enemy_number(self, entity_id: str) -> int:
+        """Return the stable encounter-local number shown in every combat view."""
+        known = self.enemy_numbers.get(entity_id)
+        if known is not None:
+            return known
+        active_ids = sorted(enemy.entity_id for enemy in self.active_enemies)
+        return active_ids.index(entity_id) + 1 if entity_id in active_ids else 0
 
     def update(self, dt: float) -> tuple[LogicEvent, ...]:
         dt = max(0.0, min(dt, 0.1))
@@ -206,14 +276,37 @@ class ActionRun:
         self.action_serial += 1
         haste = 0.70 if self.overclock > 0 else 1.0
         self.attack_cooldown = self.attack_cooldown_base * haste
+        damage = self.attack_damage + self._effect_count("push_damage_plus_one")
+        if "shield_primes_push" in self._effects() and self.invulnerable > 0:
+            damage += 1
+        if self.attack_mode is AttackMode.RANGED:
+            target, endpoint = self._first_ranged_target(3)
+            if target is None:
+                return self._remember(
+                    (
+                        LogicEvent(
+                            "attack_missed", 0, "player",
+                            from_pos=self.player.pos, to_pos=endpoint,
+                            detail="ranged_attack",
+                        ),
+                    )
+                )
+            damage = max(1, damage // 2)
+            events = [
+                LogicEvent(
+                    "ranged_fired", 0, "player", target.entity_id,
+                    from_pos=self.player.pos, to_pos=target.pos,
+                    amount=damage, detail="ranged_attack",
+                )
+            ]
+            events.extend(self._damage(target, damage, "ranged_attack"))
+            self.hit_stop = 0.035
+            return self._finish_action(events)
         target = self.state.entity_at(self.player.pos.moved(self.facing))
         if target is None or target.faction is not Faction.ENEMY:
             return self._remember(
                 (LogicEvent("attack_missed", 0, "player", to_pos=self.player.pos.moved(self.facing)),)
             )
-        damage = self.attack_damage + self._effect_count("push_damage_plus_one")
-        if "shield_primes_push" in self._effects() and self.invulnerable > 0:
-            damage += 1
         events = list(self._damage(target, damage, "basic_attack"))
         if target.entity_id in self.state.entities:
             events.extend(self._knockback(target, self.facing, "basic_attack"))
@@ -222,6 +315,20 @@ class ActionRun:
             self.attack_cooldown *= 0.55
             events.append(LogicEvent("plugin_triggered", 0, "player", detail="echo_protocol"))
         return self._finish_action(events)
+
+    def toggle_attack_mode(self) -> AttackMode:
+        if self.phase is ActionRunPhase.ACTION:
+            self.attack_mode = (
+                AttackMode.RANGED
+                if self.attack_mode is AttackMode.MELEE
+                else AttackMode.MELEE
+            )
+            self.last_events = (
+                LogicEvent(
+                    "attack_mode_changed", 0, "player", detail=self.attack_mode.value
+                ),
+            )
+        return self.attack_mode
 
     def dodge(self, direction: Direction) -> tuple[LogicEvent, ...]:
         if (
@@ -290,9 +397,8 @@ class ActionRun:
         if not self.tactical_ready:
             return False
         self.phase = ActionRunPhase.TACTICAL
-        self.commands = [
-            Command("player", CommandType.WAIT, slot) for slot in range(1, 4)
-        ]
+        self.tactical_actions = self._build_tactical_actions()
+        self._sync_tactical_commands()
         self._sync_tactical_intents()
         return True
 
@@ -305,6 +411,17 @@ class ActionRun:
         if self.phase is not ActionRunPhase.TACTICAL or not 1 <= slot <= 3:
             return
         self.commands[slot - 1] = command.in_slot(slot)
+
+    def move_tactical_action(self, index: int, offset: int) -> int:
+        if self.phase is not ActionRunPhase.TACTICAL or not self.tactical_actions:
+            return index
+        destination = max(0, min(len(self.tactical_actions) - 1, index + offset))
+        if destination == index:
+            return index
+        action = self.tactical_actions.pop(index)
+        self.tactical_actions.insert(destination, action)
+        self._sync_tactical_commands()
+        return destination
 
     def execute_tactical(self) -> SimulationResult | None:
         if self.phase is not ActionRunPhase.TACTICAL:
@@ -366,6 +483,10 @@ class ActionRun:
                 spawn.entity_id, Faction.ENEMY, spawn.pos,
                 spawn.hp, spawn.hp, display, spawn.enemy_kind
             )
+        self.enemy_numbers = {
+            spawn.entity_id: index
+            for index, spawn in enumerate(self.map.enemies, start=1)
+        }
         effects = tuple(
             self.plugins[plugin_id].effect_type
             for plugin_id, stacks in self.build.items()
@@ -432,9 +553,25 @@ class ActionRun:
                 )
             return ()
         if prepared.kind is PreparedActionKind.SPECIAL:
-            self.enemy_special_timers[actor.entity_id] = 3.2
+            self.enemy_special_timers[actor.entity_id] = (
+                1.8
+                if actor.enemy_kind == "warden" and actor.hp <= actor.max_hp // 2
+                else 2.4 if actor.enemy_kind == "warden" else 3.2
+            )
             if actor.enemy_kind == "charger":
                 return self._execute_charge(actor, player, prepared)
+            if actor.enemy_kind == "warden":
+                targets = prepared.target_positions or (prepared.target_pos,)
+                if player.pos not in targets:
+                    return (
+                        LogicEvent(
+                            "attack_missed", 0, actor.entity_id,
+                            to_pos=prepared.target_pos, detail=prepared.label,
+                        ),
+                    )
+                return self._damage_player(
+                    prepared.damage, actor.entity_id, prepared.label
+                )
         if player.pos != prepared.target_pos:
             return (
                 LogicEvent(
@@ -468,7 +605,8 @@ class ActionRun:
 
     def _sync_tactical_intents(self) -> None:
         intents: list[EnemyIntent] = []
-        for order, enemy in enumerate(self.active_enemies, start=1):
+        next_order = 1
+        for enemy in self.active_enemies:
             prepared = self.prepared_actions.get(enemy.entity_id)
             if prepared is None:
                 self._prepare_action(enemy.entity_id)
@@ -479,17 +617,127 @@ class ActionRun:
                 PreparedActionKind.STRAFE,
                 PreparedActionKind.PATROL,
             }
-            intents.append(
-                EnemyIntent(
-                    enemy.entity_id,
-                    prepared.target_pos,
-                    prepared.damage,
-                    order,
-                    "move" if is_move else "attack",
-                    prepared.label,
+            targets = prepared.target_positions or (prepared.target_pos,)
+            for target in targets:
+                intents.append(
+                    EnemyIntent(
+                        enemy.entity_id,
+                        target,
+                        prepared.damage,
+                        next_order,
+                        "move" if is_move else "attack",
+                        prepared.label,
+                    )
                 )
-            )
+                next_order += 1
         self.state.enemy_intents = tuple(intents)
+
+    def _first_ranged_target(
+        self, attack_range: int
+    ) -> tuple[EntityState | None, GridPos]:
+        player = self.player
+        if player is None:
+            return (None, GridPos(0, 0))
+        endpoint = player.pos
+        for _ in range(attack_range):
+            candidate = endpoint.moved(self.facing)
+            if not self.state.in_bounds(candidate) or candidate in self.state.walls:
+                break
+            endpoint = candidate
+            target = self.state.entity_at(candidate)
+            if target is not None:
+                return (
+                    target if target.faction is Faction.ENEMY else None,
+                    endpoint,
+                )
+        return (None, endpoint)
+
+    def _build_tactical_actions(self) -> list[TacticalAction]:
+        player = self.player
+        if player is None:
+            return []
+        left = {
+            Direction.UP: Direction.LEFT,
+            Direction.LEFT: Direction.DOWN,
+            Direction.DOWN: Direction.RIGHT,
+            Direction.RIGHT: Direction.UP,
+        }[self.facing]
+        right = self._opposite(left)
+        back = self._opposite(self.facing)
+        nearest = min(
+            self.active_enemies,
+            key=lambda enemy: (enemy.pos.manhattan_distance(player.pos), enemy.entity_id),
+            default=None,
+        )
+        pull_range = 2 + (1 if "pull_range_plus_one" in self._effects() else 0)
+        aligned = [
+            enemy for enemy in self.active_enemies
+            if (enemy.pos.x == player.pos.x or enemy.pos.y == player.pos.y)
+            and enemy.pos.manhattan_distance(player.pos) <= pull_range
+        ]
+        pull_target = min(
+            aligned,
+            key=lambda enemy: (enemy.pos.manhattan_distance(player.pos), enemy.entity_id),
+            default=nearest,
+        )
+        toward = self.facing
+        if nearest is not None:
+            dx = nearest.pos.x - player.pos.x
+            dy = nearest.pos.y - player.pos.y
+            if abs(dx) >= abs(dy) and dx:
+                toward = Direction.RIGHT if dx > 0 else Direction.LEFT
+            elif dy:
+                toward = Direction.DOWN if dy > 0 else Direction.UP
+        adjacent = nearest is not None and nearest.pos.manhattan_distance(player.pos) == 1
+        push = TacticalAction(
+            "push_target", "威胁推击",
+            Command("player", CommandType.PUSH, 1, toward),
+        )
+        pull = TacticalAction(
+            "pull_target", f"牵引 · {pull_target.display_name if pull_target else '无目标'}",
+            Command(
+                "player", CommandType.PULL, 2,
+                target_entity_id=pull_target.entity_id if pull_target else None,
+            ),
+        )
+        shield = TacticalAction(
+            "raise_shield", "展开护盾",
+            Command("player", CommandType.SHIELD, 3),
+        )
+        approach = TacticalAction(
+            "move_toward", "接近威胁",
+            Command("player", CommandType.MOVE, 4, toward),
+        )
+        flank = [
+            TacticalAction(
+                "move_left", "向左侧移",
+                Command("player", CommandType.MOVE, 5, left),
+            ),
+            TacticalAction(
+                "move_right", "向右侧移",
+                Command("player", CommandType.MOVE, 6, right),
+            ),
+            TacticalAction(
+                "move_back", "向后撤离",
+                Command("player", CommandType.MOVE, 7, back),
+            ),
+        ]
+        if adjacent:
+            return [push, shield, flank[2], pull, approach, flank[0], flank[1]]
+        if aligned:
+            return [pull, shield, approach, push, flank[0], flank[1], flank[2]]
+        return [approach, shield, flank[0], flank[1], push, pull, flank[2]]
+
+    def _sync_tactical_commands(self) -> None:
+        selected = self.tactical_actions[:3]
+        self.commands = [
+            action.command.in_slot(slot)
+            for slot, action in enumerate(selected, start=1)
+        ]
+        while len(self.commands) < 3:
+            self.commands.append(
+                Command("player", CommandType.WAIT, len(self.commands) + 1)
+            )
 
     def _damage(
         self, target: EntityState, amount: int, detail: str

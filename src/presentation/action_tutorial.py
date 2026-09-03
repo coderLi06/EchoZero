@@ -34,8 +34,8 @@ ACTION_TUTORIAL_STEPS = (
     ),
     ActionTutorialStep(
         "attack",
-        "攻击、闪避与牵引",
-        "左键或 Space 向面对方向进行四向攻击并击退（不支持斜向）；Shift+WASD 闪避；E 沿面对方向牵引敌人。冷却条就绪后可再次使用。",
+        "近战、远程与切换",
+        "按 C 切换攻击模式：近战距离 1、全伤并击退；远程沿面对方向命中 3 格内首个敌人、伤害减半且不击退。Space/左键攻击，Shift+WASD 闪避，E 牵引。",
         "action_controls",
     ),
     ActionTutorialStep(
@@ -53,7 +53,7 @@ ACTION_TUTORIAL_STEPS = (
     ActionTutorialStep(
         "timeline",
         "三拍编排与 PREVIEW",
-        "选择 1/2/3 拍写入 Move、Push、Pull、Shield 或 Wait。Preview 来自真实模拟器副本，换序会改变结果。",
+        "Q 会给出 7 条可用动作。用 1～7 选择、W/S 调整优先级；前三项组成实际三拍，Preview 会随排序即时变化。",
         "timeline",
     ),
     ActionTutorialStep(

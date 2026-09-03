@@ -30,6 +30,7 @@ Action Run: Seed ─→ ProceduralEncounterGenerator ─→ ActionRun
 - `domain/procedural.py`：Seeded 房间/走廊/障碍/危险/出生点生成，BFS 连通性和距离校验，有限次数失败重试；
 - `domain/behavior_tree.py`：BehaviorNode、Selector、Sequence、Condition、Action 与三种敌人树；输出唯一 PreparedAction；
 - `domain/action_run.py`：实时动作事实、冷却、Encounter/Reward/Result 流程，以及 Tactical Mode 对 `simulate_turn` 的适配；
+- Tactical 候选动作与优先队列也由 `domain/action_run.py` 持有；表现层只选择和排序，领域层把前三项重新编号为 1～3 槽后交给唯一 `simulate_turn`，候补动作不参与结算；
 - `presentation/action_renderer.py`：绘制地图、Intent、打击反馈、Tactical Overlay、Reward 和 Run 结果，只读领域状态与事件；
 - `action_app.py`：键鼠输入、60 FPS 推进、Seed 展示和场景切换；`Stage03App` 继续作为 Tutorial / Showcase 入口。
 
@@ -291,3 +292,31 @@ MVP 不需要优先队列；使用稳定列表即可保证确定性。只有后�
 - `presentation/fonts.py` 统一 Action / Showcase 字体选择：纯英文展示标题优先使用项目内 Orbitron，中文和正文走系统字体回退。
 
 本轮只调整表现模块和历史测试夹具，不修改战斗、AI、程序地图、奖励、Seed 或结算规则。
+
+## 30. 远近程攻击与相位守卫十字锁定（2026-09-02）
+
+- `domain/action_run.py` 以 `AttackMode` 保存玩家当前攻击模式；近战与远程共用同一伤害增益入口，远程仅在最终伤害阶段执行 50% 下取整并保证至少 1 点；
+- 远程射线只沿玩家朝向扫描 3 格，越界或墙体立即终止，并对遇到的第一个存活敌人结算；领域层返回 `ranged_fired` / `damage` 事件，表现层只绘制弹道与受击姿态；
+- `PreparedAction.target_positions` 表达多格公开锁定。相位守卫特殊攻击生成中心加四个正交相邻格，实时 Intent、Tactical 投影与执行都读取同一目标集合；
+- 第三场生成器固定相位守卫 12 HP；行为树固定其普通伤害 3、特殊伤害 4，半血后只缩短特殊攻击冷却；
+- `presentation` 仅消费攻击模式、Boss 状态和事件，绘制工业终端面板、模式提示、Boss 条和十字危险格，不反向修改规则。
+
+依赖仍保持 `Input → ActionRun/BehaviorTree → LogicEvent/PreparedAction → ActionApp/Renderer`，`src/domain` 不导入 pygame。
+
+## 31. Tactical 动态战损摘要（2026-09-03）
+
+- `ActionRun.enemy_numbers` 在每次 Encounter 构建时按生成顺序固化 `E1–E5`，地图徽章、实时 Intent、Preview ghost 与战损摘要均调用 `enemy_number()`，敌人死亡不会导致剩余编号漂移；
+- `ActionRun.tactical_preview_summary` 每次读取当前前三拍时调用既有 `preview_turn`，比较真实当前状态与预演状态，生成玩家 HP 前后值及实际受伤敌人的结构化 `TacticalEnemyDelta`；
+- 表现层只将摘要绘制为玩家固定行和最多三条敌人战损行；没有敌人受伤时显示空状态，不根据动画或 UI 自行推算伤害；
+- 排序操作仍只更新 `tactical_actions` 与前三条 `commands`，下一帧读取同源摘要，因此预演变化不需要额外缓存或失效管理。
+
+依赖保持 `TacticalAction[] → Command[3] → preview_turn → TacticalPreviewSummary → Renderer`，Execute 仍调用同一个模拟器。
+
+## 32. Showcase 连续回合命令续接（2026-09-03）
+
+- `Encounter.confirm_turn()` 在战斗仍为 `ONGOING` 时不再无条件把三槽清空：无实体引用的移动、推击、护盾等命令保留原槽位；
+- 若牵引命令指向本回合已死亡的敌人，领域层根据下一轮已重新定位的状态，优先生成朝最近存活敌人的合法移动；若敌人已相邻则生成对应方向的推击；只有玩家四周均不可达时才回退为待机；
+- 建议命令仍是普通 `Command`，玩家可以继续换序、改写或右键清空；Preview 与 Execute 不增加特殊分支，继续共用 `simulate_turn`；
+- `Stage03App` 只更新回合完成提示，不在表现层计算路径、伤害或目标有效性。
+
+依赖保持 `execute_turn → prepare_enemy_turn → next Command[3] → preview_turn`，没有新增随机源或第二套结算。

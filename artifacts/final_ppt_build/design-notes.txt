@@ -1,0 +1,4 @@
+Communication job: By the end, course judges should believe EchoZero deserves a high project-acceptance score because its core innovation is immediately visible, both levels are complete and differentiated, the implementation is explainable and verified, and the AI collaboration process shows human critical judgment.
+Narrative: product promise -> playable loop -> innovation contrast -> depth across levels/builds -> implementation credibility -> AI collaboration evidence -> acceptance proof.
+Selected Codex Grid references: slide-08 cover image field; slide-10 paired evidence; slide-19 metrics; slide-01 sparse synthesis.
+Visual system: white/near-black editorial structure translated to EchoZero dark steel canvas, cyan for simulation/preview, amber for action/evidence, violet for reverse/build, thin rules, large screenshot fields, no dashboard chrome.

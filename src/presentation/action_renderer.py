@@ -15,8 +15,9 @@ from src.presentation.action_renderer_values import (
     ACTION_TUTORIAL_BACK_RECT, ACTION_TUTORIAL_REPLAY_RECT,
     ACTION_TUTORIAL_SKIP_ALL_RECT, ACTION_TUTORIAL_SKIP_STEP_RECT,
     CELL_SIZE, COLORS, GRID_ORIGIN, INTENT_LABELS, NEW_RUN_RECT, PANEL_X,
-    REWARD_KIND_LABELS, REWARD_RECTS, SHOWCASE_RECT, TACTICAL_CANCEL_RECT, TACTICAL_EXECUTE_RECT,
-    TACTICAL_SLOT_RECTS, WINDOW_SIZE,
+    REWARD_KIND_LABELS, REWARD_RECTS, SHOWCASE_RECT, TACTICAL_ACTION_RECTS,
+    TACTICAL_CANCEL_RECT, TACTICAL_DOWN_RECT, TACTICAL_EXECUTE_RECT,
+    TACTICAL_SLOT_RECTS, TACTICAL_UP_RECT, WINDOW_SIZE,
 )
 from src.presentation.action_renderer_world import ActionWorldMixin
 
@@ -59,9 +60,9 @@ class ActionRenderer(ActionWorldMixin, ActionTutorialMixin, ActionOverlayMixin):
     def draw(self, app: Any) -> None:
         self.screen.fill(COLORS["background"])
         for x in range(0, WINDOW_SIZE[0], 64):
-            pygame.draw.line(self.screen, (19, 32, 45), (x, 0), (x, WINDOW_SIZE[1]))
+            pygame.draw.line(self.screen, (34, 31, 24), (x, 0), (x, WINDOW_SIZE[1]))
         for y in range(0, WINDOW_SIZE[1], 64):
-            pygame.draw.line(self.screen, (19, 32, 45), (0, y), (WINDOW_SIZE[0], y))
+            pygame.draw.line(self.screen, (34, 31, 24), (0, y), (WINDOW_SIZE[0], y))
         pygame.draw.line(self.screen, COLORS["cyan"], (0, 0), (WINDOW_SIZE[0], 0), 3)
         if app.tutorial.active:
             self._tutorial(app)
@@ -98,7 +99,7 @@ class ActionRenderer(ActionWorldMixin, ActionTutorialMixin, ActionOverlayMixin):
     def _meter(self, label: str, remaining: float, maximum: float, pos: tuple[int, int]) -> None:
         self._text_at(label, 11, COLORS["muted"], pos, True, "data")
         rect = pygame.Rect(pos[0] + 94, pos[1] + 2, 196, 10)
-        pygame.draw.rect(self.screen, (43, 54, 72), rect)
+        pygame.draw.rect(self.screen, COLORS["surface_high"], rect)
         ready = maximum <= 0 or remaining <= 0
         fill = rect.copy()
         fill.width = rect.width if ready else round(rect.width * (1 - min(1.0, remaining / maximum)))
@@ -213,6 +214,27 @@ class ActionRenderer(ActionWorldMixin, ActionTutorialMixin, ActionOverlayMixin):
                 (max(rect.x + cut + 4, rect.right - cut - 24), rect.bottom - 1),
                 2,
             )
+        if rect.width >= 100 and rect.height >= 42:
+            inner = rect.inflate(-8, -8)
+            pygame.draw.rect(self.screen, (24, 22, 18), inner, 1, border_radius=3)
+            pygame.draw.line(
+                self.screen, (175, 150, 96),
+                (rect.x + cut + 5, rect.y + 3),
+                (rect.right - cut - 5, rect.y + 3), 1,
+            )
+            pygame.draw.line(
+                self.screen, (18, 16, 13),
+                (rect.x + cut + 5, rect.bottom - 4),
+                (rect.right - cut - 5, rect.bottom - 4), 2,
+            )
+            for center in (
+                (rect.x + 10, rect.y + 10),
+                (rect.right - 11, rect.y + 10),
+                (rect.x + 10, rect.bottom - 11),
+                (rect.right - 11, rect.bottom - 11),
+            ):
+                pygame.draw.circle(self.screen, (24, 22, 18), center, 3)
+                pygame.draw.circle(self.screen, COLORS["border"], center, 3, 1)
 
     def _diamond(self, center: tuple[int, int], radius: int, color: tuple[int, int, int], width: int) -> None:
         pygame.draw.polygon(

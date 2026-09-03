@@ -26,9 +26,12 @@ from src.presentation.action_renderer import (
     ACTION_TUTORIAL_SKIP_STEP_RECT,
     NEW_RUN_RECT,
     REWARD_RECTS,
+    TACTICAL_ACTION_RECTS,
     TACTICAL_CANCEL_RECT,
+    TACTICAL_DOWN_RECT,
     TACTICAL_EXECUTE_RECT,
     TACTICAL_SLOT_RECTS,
+    TACTICAL_UP_RECT,
     ActionRenderer,
     CELL_SIZE,
     COLORS,
@@ -107,6 +110,19 @@ def test_wasd_keydown_moves_immediately_without_waiting_for_key_poll(tmp_path: P
     assert app.player_pose == "move"
 
 
+def test_c_key_toggles_attack_mode_and_updates_hud_notice(tmp_path: Path) -> None:
+    app = ActionApp(seed=43, meta_path=tmp_path / "meta.json")
+    app.start_new_run()
+    assert app.run_state is not None
+
+    app._handle_key(pygame.K_c, 0)
+
+    assert app.run_state.attack_mode.value == "ranged"
+    assert "3 格" in app.input_notice
+    app._handle_key(pygame.K_c, 0)
+    assert app.run_state.attack_mode.value == "melee"
+
+
 def test_logic_events_select_attack_dodge_skill_and_hurt_poses(tmp_path: Path) -> None:
     app = ActionApp(seed=42, meta_path=tmp_path / "meta.json")
     cases = (
@@ -114,6 +130,7 @@ def test_logic_events_select_attack_dodge_skill_and_hurt_poses(tmp_path: Path) -
         (LogicEvent("dodged", 0, "player", from_pos=GridPos(1, 1), to_pos=GridPos(2, 1)), "dodge"),
         (LogicEvent("pull_missed", 0, "player"), "skill"),
         (LogicEvent("damaged", 0, "enemy", "player", to_pos=GridPos(1, 1), amount=1), "hurt"),
+        (LogicEvent("ranged_fired", 0, "player", "enemy", GridPos(1, 1), GridPos(3, 1), 1, "ranged_attack"), "attack"),
     )
     for event, expected in cases:
         app._consume((event,))
@@ -252,7 +269,7 @@ def test_action_renderer_links_enemy_intent_and_explains_attack_direction(tmp_pa
     app._finish_action_tutorial()
     renderer.draw(app)
     visible_text = "\n".join(key[0] for key in renderer.text_cache)
-    assert "SPACE 四向攻击" in visible_text
+    assert "C  攻击模式：近战 · 1格 · 全伤" in visible_text
     assert app.run_state is not None
     first_enemy = app.run_state.active_enemies[0]
     assert f"E1  {first_enemy.display_name}" in visible_text
@@ -263,6 +280,8 @@ def test_action_ui_targets_are_large_and_tactical_has_escape() -> None:
         NEW_RUN_RECT,
         *REWARD_RECTS,
         *TACTICAL_SLOT_RECTS,
+        TACTICAL_UP_RECT,
+        TACTICAL_DOWN_RECT,
         TACTICAL_EXECUTE_RECT,
         TACTICAL_CANCEL_RECT,
         ACTION_TUTORIAL_REPLAY_RECT,
@@ -271,6 +290,75 @@ def test_action_ui_targets_are_large_and_tactical_has_escape() -> None:
         ACTION_TUTORIAL_SKIP_ALL_RECT,
     )
     assert all(rect.width >= 48 and rect.height >= 48 for rect in targets)
+
+
+def test_tactical_keyboard_reorders_more_than_three_actions(tmp_path: Path) -> None:
+    app = ActionApp(seed=10303, meta_path=tmp_path / "meta.json")
+    app.start_new_run()
+    run = app.run_state
+    assert run is not None and run.enter_tactical()
+    assert len(TACTICAL_ACTION_RECTS) > 3
+    app.selected_slot = 3
+    promoted = run.tactical_actions[3].action_id
+
+    app._handle_tactical_key(pygame.K_UP)
+
+    assert app.selected_slot == 2
+    assert run.tactical_actions[2].action_id == promoted
+    assert run.commands[2].command_type is run.tactical_actions[2].command.command_type
+
+
+def test_tactical_renderer_shows_numbered_damage_and_no_hit_state(tmp_path: Path) -> None:
+    pygame.font.init()
+    app = ActionApp(seed=10303, meta_path=tmp_path / "meta.json")
+    app.start_new_run()
+    run = app.run_state
+    assert run is not None
+    run.state.width = 5
+    run.state.height = 5
+    run.state.walls = set()
+    run.state.entities = {
+        "player": EntityState("player", Faction.PLAYER, GridPos(1, 2), 8, 8, "ECHO"),
+        "enemy_3": EntityState(
+            "enemy_3", Faction.ENEMY, GridPos(2, 2), 3, 3, "校验射手", "ranged"
+        ),
+    }
+    run.enemy_numbers = {"enemy_3": 3}
+    run.prepared_actions = {}
+    run.state.enemy_intents = ()
+    assert run.enter_tactical()
+
+    hit_renderer = ActionRenderer(pygame.Surface((1280, 800)))
+    app.renderer = hit_renderer
+    hit_renderer.draw(app)
+    hit_text = "\n".join(key[0] for key in hit_renderer.text_cache)
+    assert "预演战损" in hit_text
+    assert "玩家" in hit_text
+    assert "E3  校验射手" in hit_text
+    assert "HP 3 → 2  (-1)" in hit_text
+
+    run.move_tactical_action(0, 3)
+    miss_renderer = ActionRenderer(pygame.Surface((1280, 800)))
+    app.renderer = miss_renderer
+    miss_renderer.draw(app)
+    miss_text = "\n".join(key[0] for key in miss_renderer.text_cache)
+    assert "前三拍未对敌人造成伤害" in miss_text
+    assert "HP 3 → 2  (-1)" not in miss_text
+
+
+def test_tactical_mouse_selects_and_reorders_candidate(tmp_path: Path) -> None:
+    app = ActionApp(seed=10303, meta_path=tmp_path / "meta.json")
+    app.renderer = ActionRenderer(pygame.Surface((1280, 800)))
+    app.start_new_run()
+    run = app.run_state
+    assert run is not None and run.enter_tactical()
+    candidate = run.tactical_actions[3].action_id
+
+    app._handle_click(TACTICAL_ACTION_RECTS[3].center, 1)
+    app._handle_click(TACTICAL_UP_RECT.center, 1)
+
+    assert app.selected_slot == 2
+    assert run.tactical_actions[2].action_id == candidate
 
 
 def test_action_visuals_use_large_cells_high_contrast_and_distinct_silhouettes() -> None:

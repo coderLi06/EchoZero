@@ -51,6 +51,22 @@ def test_illegal_command_does_not_change_encounter() -> None:
     assert encounter.commands == before_commands
 
 
+def test_dead_target_fallback_waits_only_when_player_has_no_legal_action() -> None:
+    state = CombatState(
+        3,
+        3,
+        {
+            "player": EntityState("player", Faction.PLAYER, GridPos(1, 1), 5, 5, "Player"),
+            "enemy": EntityState("enemy", Faction.ENEMY, GridPos(0, 0), 2, 2, "Enemy", "guard"),
+        },
+        walls={GridPos(1, 0), GridPos(2, 1), GridPos(1, 2), GridPos(0, 1)},
+    )
+
+    replacement = Encounter._approach_surviving_enemy(state, 2)
+
+    assert replacement == Command("player", CommandType.WAIT, 2)
+
+
 def test_shield_changes_state_and_absorbs_enemy_damage() -> None:
     state = CombatState(
         3,

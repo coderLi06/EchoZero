@@ -1,0 +1,3 @@
+No internet sources. All claims and screenshots remain project-authored.
+Current yellow screenshots were generated with tools/capture_action_ui.py from the current local code, fixed seed 10303, under artifacts/final_ppt_yellow_edit/artifacts/meowa_ui_qa.
+Original project sources and [Sources] blocks in speaker notes are preserved.

@@ -5,16 +5,19 @@ from pathlib import Path
 from src.domain import (
     ActionRun,
     ActionRunPhase,
+    AttackMode,
     Command,
     CommandType,
     Direction,
     EnemyIntent,
+    EntityState,
     Faction,
     GridPos,
     PreparedActionKind,
     RewardKind,
     execute_turn,
     preview_turn,
+    plan_enemy_action,
     state_fingerprint,
 )
 from src.infrastructure import load_demo_content
@@ -50,6 +53,60 @@ def test_realtime_move_attack_dodge_and_skill_have_cooldowns() -> None:
     assert run.invulnerable > 0
     run.tractor_skill(open_direction)
     assert run.skill_cooldown > 0
+
+
+def test_melee_and_ranged_modes_trade_damage_for_range() -> None:
+    melee = _run(801)
+    assert melee.player is not None
+    melee.state.width = 7
+    melee.state.height = 4
+    melee.state.walls = set()
+    melee.state.entities = {
+        "player": EntityState("player", Faction.PLAYER, GridPos(1, 1), 8, 8, "P"),
+        "enemy": EntityState("enemy", Faction.ENEMY, GridPos(2, 1), 5, 5, "E", "melee"),
+    }
+    melee.facing = Direction.RIGHT
+    melee.attack()
+    assert melee.state.entities["enemy"].hp == 3
+    assert melee.state.entities["enemy"].pos == GridPos(3, 1)
+
+    ranged = _run(802)
+    ranged.state.width = 7
+    ranged.state.height = 4
+    ranged.state.walls = set()
+    ranged.state.entities = {
+        "player": EntityState("player", Faction.PLAYER, GridPos(1, 1), 8, 8, "P"),
+        "near": EntityState("near", Faction.ENEMY, GridPos(3, 1), 5, 5, "N", "melee"),
+        "far": EntityState("far", Faction.ENEMY, GridPos(4, 1), 5, 5, "F", "melee"),
+    }
+    ranged.facing = Direction.RIGHT
+    assert ranged.toggle_attack_mode() is AttackMode.RANGED
+    assert ranged.attack_cooldown == 0
+    events = ranged.attack()
+    assert ranged.state.entities["near"].hp == 4
+    assert ranged.state.entities["near"].pos == GridPos(3, 1)
+    assert ranged.state.entities["far"].hp == 5
+    assert any(event.kind == "ranged_fired" for event in events)
+
+
+def test_ranged_attack_stops_at_walls_and_three_cells() -> None:
+    run = _run(803)
+    run.state.width = 8
+    run.state.height = 4
+    run.state.entities = {
+        "player": EntityState("player", Faction.PLAYER, GridPos(1, 1), 8, 8, "P"),
+        "blocked": EntityState("blocked", Faction.ENEMY, GridPos(3, 1), 5, 5, "B", "melee"),
+        "far": EntityState("far", Faction.ENEMY, GridPos(5, 1), 5, 5, "F", "melee"),
+    }
+    run.state.walls = {GridPos(2, 1)}
+    run.facing = Direction.RIGHT
+    run.toggle_attack_mode()
+
+    events = run.attack()
+
+    assert all(entity.hp == 5 for entity in run.active_enemies)
+    assert events[0].kind == "attack_missed"
+    assert events[0].to_pos == GridPos(1, 1)
 
 
 def test_encounter_grace_exposes_intent_before_first_enemy_action() -> None:
@@ -119,6 +176,109 @@ def test_tactical_preview_equals_direct_shared_execution() -> None:
     assert run.tactical_cooldown == run.TACTICAL_COOLDOWN
 
 
+def test_tactical_pool_starts_populated_and_top_three_drive_preview() -> None:
+    run = _run(78)
+    assert run.enter_tactical()
+    assert len(run.tactical_actions) == 7
+    assert all(command.command_type is not CommandType.WAIT for command in run.commands)
+    assert run.commands == [
+        action.command.in_slot(slot)
+        for slot, action in enumerate(run.tactical_actions[:3], start=1)
+    ]
+
+    original_first = run.tactical_actions[0].action_id
+    promoted_id = run.tactical_actions[3].action_id
+    selected = run.move_tactical_action(3, -3)
+
+    assert selected == 0
+    assert run.tactical_actions[0].action_id == promoted_id
+    assert run.tactical_actions[1].action_id == original_first
+    preview = run.preview
+    assert preview is not None
+    direct = execute_turn(run.state, run.commands)
+    assert state_fingerprint(preview.state) == state_fingerprint(direct.state)
+
+
+def test_enemy_numbers_stay_fixed_after_an_earlier_enemy_dies() -> None:
+    run = _run(781)
+    enemies = run.active_enemies
+    assert len(enemies) >= 2
+    first_id = enemies[0].entity_id
+    second_id = enemies[1].entity_id
+
+    assert run.enemy_number(first_id) == 1
+    assert run.enemy_number(second_id) == 2
+
+    run.state.entities.pop(first_id)
+
+    assert run.enemy_number(second_id) == 2
+
+
+def test_tactical_preview_summary_tracks_enemy_damage_after_reordering() -> None:
+    run = _run(782)
+    run.state.width = 5
+    run.state.height = 5
+    run.state.walls = set()
+    run.state.entities = {
+        "player": EntityState("player", Faction.PLAYER, GridPos(1, 2), 8, 8, "ECHO"),
+        "enemy_3": EntityState(
+            "enemy_3", Faction.ENEMY, GridPos(2, 2), 3, 3, "校验射手", "ranged"
+        ),
+    }
+    run.enemy_numbers = {"enemy_3": 3}
+    run.prepared_actions = {}
+    run.state.enemy_intents = ()
+
+    assert run.enter_tactical()
+    hit = run.tactical_preview_summary
+
+    assert hit is not None
+    assert (hit.player_before_hp, hit.player_after_hp) == (8, 8)
+    assert len(hit.enemy_deltas) == 1
+    assert hit.enemy_deltas[0].number == 3
+    assert hit.enemy_deltas[0].display_name == "校验射手"
+    assert (hit.enemy_deltas[0].before_hp, hit.enemy_deltas[0].after_hp) == (3, 2)
+    assert hit.enemy_deltas[0].damage == 1
+
+    run.move_tactical_action(0, 3)
+    miss = run.tactical_preview_summary
+
+    assert miss is not None
+    assert miss.enemy_deltas == ()
+    assert (miss.player_before_hp, miss.player_after_hp) == (8, 8)
+
+
+def test_tactical_execute_ignores_reserve_actions() -> None:
+    run = _run(79)
+    assert run.enter_tactical()
+    player = run.player
+    assert player is not None
+    origin = player.pos
+    reserve_ids = {action.action_id for action in run.tactical_actions[3:]}
+    assert len(reserve_ids) == 4
+
+    result = run.execute_tactical()
+
+    assert result is not None
+    executed_ids = {action.action_id for action in run.tactical_actions[:3]}
+    if "move_toward" not in executed_ids and not executed_ids & {"move_left", "move_right", "move_back"}:
+        assert result.state.entities["player"].pos == origin
+
+
+def test_tactical_pool_prioritises_a_valid_context_action() -> None:
+    run = _run(80)
+    player = run.player
+    assert player is not None
+    enemy = run.active_enemies[0]
+    enemy.pos = player.pos.moved(Direction.RIGHT)
+    run.facing = Direction.LEFT
+
+    assert run.enter_tactical()
+
+    assert run.tactical_actions[0].action_id == "push_target"
+    assert run.commands[0].direction is Direction.RIGHT
+
+
 def test_tactical_move_intent_uses_shared_simulator() -> None:
     run = _run(17)
     enemy = run.active_enemies[0]
@@ -173,6 +333,66 @@ def test_run_reaches_boss_victory_and_defeat() -> None:
     del defeated.state.entities["player"]
     defeated.update(0.01)
     assert defeated.phase is ActionRunPhase.DEFEAT
+
+
+def test_final_warden_has_cross_burst_and_upgraded_damage() -> None:
+    run = _run(804)
+    run.encounter_index = 2
+    run._build_encounter(carry_hp=8)
+    warden = next(enemy for enemy in run.active_enemies if enemy.enemy_kind == "warden")
+    assert (warden.hp, warden.max_hp) == (12, 12)
+    assert run.player is not None
+    run.state.width = 7
+    run.state.height = 7
+    run.state.walls = set()
+    run.player.pos = GridPos(3, 3)
+    warden.pos = GridPos(3, 0)
+    special = plan_enemy_action(run.state, warden.entity_id, special_ready=True)
+    assert special.damage == 4
+    assert special.label == "PHASE CROSS"
+    assert set(special.target_positions) == {
+        GridPos(3, 3), GridPos(3, 2), GridPos(4, 3),
+        GridPos(3, 4), GridPos(2, 3),
+    }
+    run.prepared_actions[warden.entity_id] = special
+    run._sync_tactical_intents()
+    burst_intents = [
+        intent for intent in run.state.enemy_intents
+        if intent.actor_id == warden.entity_id
+    ]
+    assert len(burst_intents) == 5
+    waits = [Command("player", CommandType.WAIT, slot) for slot in range(1, 4)]
+    preview = preview_turn(run.state, waits)
+    assert preview.state.entities["player"].hp == 4
+
+    normal = plan_enemy_action(run.state, warden.entity_id, special_ready=False)
+    assert normal.damage == 3
+
+
+def test_warden_cross_burst_hits_adjacent_locked_cell_in_realtime() -> None:
+    run = _run(805)
+    run.encounter_index = 2
+    run._build_encounter(carry_hp=8)
+    assert run.player is not None
+    warden = next(enemy for enemy in run.active_enemies if enemy.enemy_kind == "warden")
+    run.state.width = 7
+    run.state.height = 7
+    run.state.walls = set()
+    run.player.pos = GridPos(3, 3)
+    warden.pos = GridPos(3, 0)
+    special = plan_enemy_action(run.state, warden.entity_id, special_ready=True)
+    run.player.pos = GridPos(4, 3)
+
+    events = run._execute_prepared(special)
+
+    assert run.player.hp == 4
+    assert any(event.kind == "damaged" and event.amount == 4 for event in events)
+    assert run.enemy_special_timers[warden.entity_id] == 2.4
+
+    warden.hp = 6
+    run.player.pos = GridPos(3, 3)
+    run._execute_prepared(special)
+    assert run.enemy_special_timers[warden.entity_id] == 1.8
 
 
 def test_action_state_keeps_domain_free_of_pygame() -> None:

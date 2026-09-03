@@ -1,0 +1,3 @@
+Slides 1-9: unchanged from current user file.
+Slide 10: duplicate of source slide 8; text rewritten to explain AI strengths, gameplay/balance/UI limitations, and human/tool-assisted solutions.
+Slide 11: duplicate of source slide 9; metrics reframed as three future priorities and bottom strip reframed as priority order.

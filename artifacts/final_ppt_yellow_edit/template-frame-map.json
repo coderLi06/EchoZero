@@ -1,0 +1,12 @@
+{
+  "outputSlides": [
+    {"outputSlide":1,"sourceSlide":1,"narrativeRole":"opening thesis","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"},{"action":"replace","sourceElementId":"cover-boss","reason":"current yellow industrial UI screenshot"}]},
+    {"outputSlide":2,"sourceSlide":2,"narrativeRole":"playable loop","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"},{"action":"replace","sourceElementId":"action-loop","reason":"current yellow industrial UI screenshot"}]},
+    {"outputSlide":3,"sourceSlide":3,"narrativeRole":"core innovation","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"},{"action":"replace","sourceElementId":"tactical-pool","reason":"current yellow industrial UI screenshot"}]},
+    {"outputSlide":4,"sourceSlide":4,"narrativeRole":"level differentiation","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"}]},
+    {"outputSlide":5,"sourceSlide":5,"narrativeRole":"technical credibility","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"},{"action":"replace","sourceElementId":"debug-panel","reason":"current yellow technical panel screenshot"}]},
+    {"outputSlide":6,"sourceSlide":6,"narrativeRole":"AI collaboration","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"},{"action":"replace","sourceElementId":"ai-after","reason":"current yellow Tactical screenshot"}]},
+    {"outputSlide":7,"sourceSlide":7,"narrativeRole":"acceptance proof","reuseMode":"duplicate-slide","editTargets":[{"action":"recolor","reason":"global palette"}]}
+  ],
+  "omittedSourceSlides": []
+}

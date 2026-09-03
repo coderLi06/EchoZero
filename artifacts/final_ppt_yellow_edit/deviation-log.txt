@@ -1,0 +1,4 @@
+Intentional departures from source:
+- All slides: cyan #53D8E5 -> aged brass #D8A53A; violet #A67CFF -> dark amber #C98A32; bright green #74D99F -> olive #9AAD5B; cool grays warmed to charcoal/bronze.
+- Slides 1, 2, 3, 5, 6: replace selected old blue Action screenshots with deterministic screenshots captured from the current yellow industrial-terminal renderer.
+- Red danger semantics and all content/layout/typography/notes remain unchanged.

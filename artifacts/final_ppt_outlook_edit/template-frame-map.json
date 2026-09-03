@@ -1,0 +1,16 @@
+{
+  "outputSlides": [
+    {"outputSlide":1,"sourceSlide":1,"narrativeRole":"cover","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":2,"sourceSlide":2,"narrativeRole":"features","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":3,"sourceSlide":3,"narrativeRole":"innovation","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":4,"sourceSlide":4,"narrativeRole":"preview detail","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":5,"sourceSlide":5,"narrativeRole":"levels and growth","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":6,"sourceSlide":6,"narrativeRole":"ui","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":7,"sourceSlide":7,"narrativeRole":"ai workflow","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":8,"sourceSlide":8,"narrativeRole":"ai critical thinking","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":9,"sourceSlide":9,"narrativeRole":"acceptance evidence","reuseMode":"preserve","editTargets":[]},
+    {"outputSlide":10,"sourceSlide":8,"narrativeRole":"implementation challenges and solutions","reuseMode":"duplicate-slide","editTargets":[{"sourceElementId":"section-10","action":"rewrite"},{"sourceElementId":"title-10","action":"rewrite"},{"sourceElementId":"page-10","action":"rewrite"},{"sourceElementId":"case text groups","action":"rewrite"},{"sourceElementId":"ai-boundary-text","action":"rewrite"}]},
+    {"outputSlide":11,"sourceSlide":9,"narrativeRole":"summary and outlook","reuseMode":"duplicate-slide","editTargets":[{"sourceElementId":"section-11","action":"rewrite"},{"sourceElementId":"title-11","action":"rewrite"},{"sourceElementId":"page-11","action":"rewrite"},{"sourceElementId":"evidence-lead","action":"rewrite"},{"sourceElementId":"metric text groups","action":"rewrite"},{"sourceElementId":"delivery-text","action":"rewrite"},{"sourceElementId":"close-line","action":"rewrite"}]}
+  ],
+  "omittedSourceSlides": []
+}

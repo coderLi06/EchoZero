@@ -13,7 +13,8 @@
 - 2026-09-01 使用项目负责人已配置的 Meowa 账户与本地 game-assets skill 生成 EchoZero 几何科幻角色族谱；运行素材位于 `assets/meowa/characters`，包含玩家、近战体、射手和守卫四张透明像素母版；
 - 突进体复用近战母版并由 pygame 表现层添加黄色信号识别；第二遭遇后的精英表现使用同一母版增加双线角标，不新增角色、敌人数值或 AI 逻辑；
 - Meowa UI 构件板位于 `assets/meowa/style_reference/ui_component_sheet.png`，只作为切角装甲面板、状态条和四色语义图标的视觉参考；正式界面由 pygame 基础图形按窗口逻辑尺寸绘制；
-- 角色生成任务：`job_b8a1baa052624ecebd95cfae47eafd2d`；UI 构件任务：`job_4cb482cc51124bec9219375d6ba787ac`。素材使用资格遵循生成账户对应的 Meowa 服务条款。
+- 2026-09-02 新增旧工业终端 UI 组件板，最终输出位于 `assets/meowa/industrial_terminal_ui_20260902/A_cohesive_pixel-art_UI_component_sheet_for_a_top-down_sci-fi_action_game_worn_dark_steel_and_aged_brass_panel_8499849a/ui_output.png`，仅用于暗钢、旧黄铜、军绿、琥珀配色及内嵌面板细节参考；用户提供的两张参考图未复制进仓库或发布包；
+- 角色生成任务：`job_b8a1baa052624ecebd95cfae47eafd2d`；首版 UI 构件任务：`job_4cb482cc51124bec9219375d6ba787ac`；工业终端 UI 任务：`job_e42f1b81dcbd4ba1b05048fbeaea2a4c`。素材使用资格遵循生成账户对应的 Meowa 服务条款。
 
 ## Aseprite 兼容动画衍生素材
 

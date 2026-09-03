@@ -1,0 +1,4 @@
+All visuals and claims are project-authored or supplied by the user.
+Project sources: 项目配置.md; INNOVATION.md; ARCHITECTURE.md; DEMO_PLAN.md; 功能测试与初验报告.md; docs/blind-tests/盲测汇总.md; ASSET_CREDITS.md; artifacts/ui_polish_final; artifacts/ui_polish_pass1; artifacts/tactical_action_pool; logs/visual_polish.
+Scoring reference: C:\Users\ASUS\AppData\Local\Temp\codex-clipboard-4433a539-fb26-4f7f-abd0-cfce7b6d74be.png.
+No internet research used.

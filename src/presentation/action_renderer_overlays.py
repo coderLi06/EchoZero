@@ -9,8 +9,9 @@ import pygame
 from src.domain import ActionRunPhase, CommandType, Faction, GridPos, RewardKind
 from src.presentation.action_renderer_values import (
     COLORS, DIRECTION_LABELS, NEW_RUN_RECT, PANEL_X, PROTOCOL_EFFECT_LABELS,
-    REWARD_KIND_COLORS, REWARD_KIND_LABELS, REWARD_RECTS, TACTICAL_CANCEL_RECT,
-    TACTICAL_EXECUTE_RECT, TACTICAL_SLOT_RECTS, TIMELINE_LABELS, WINDOW_SIZE,
+    REWARD_KIND_COLORS, REWARD_KIND_LABELS, REWARD_RECTS, TACTICAL_ACTION_RECTS,
+    TACTICAL_CANCEL_RECT, TACTICAL_DOWN_RECT, TACTICAL_EXECUTE_RECT,
+    TACTICAL_UP_RECT, TIMELINE_LABELS, WINDOW_SIZE,
 )
 
 
@@ -35,31 +36,44 @@ class ActionOverlayMixin:
                     (rect.x + min(rect.width, offset + rect.height), rect.bottom - min(rect.height, rect.width - offset)),
                     1,
                 )
-        panel = pygame.Rect(PANEL_X - 16, 290, 324, 430)
+        panel = pygame.Rect(PANEL_X - 16, 62, 324, 680)
         self._panel(panel, (19, 29, 48), COLORS["cyan"], 3, 12, COLORS["cyan"])
         pygame.draw.rect(self.screen, COLORS["cyan"], pygame.Rect(panel.x, panel.y + 18, 3, 108))
-        self._text_at("战术模式", 17, COLORS["cyan"], (PANEL_X, 308), True)
-        self._text_at("时间冻结 · 敌方意图已锁定", 12, COLORS["muted"], (PANEL_X, 334), True)
+        self._text_at("战术模式 · 动作优先队列", 17, COLORS["cyan"], (PANEL_X, 80), True)
+        self._text_at("时间冻结 · 前三项实际执行", 12, COLORS["muted"], (PANEL_X, 106), True)
         chain_label, chain_color = self._tactical_chain(run.commands)
         chain_name = chain_label.split(" ·", 1)[0]
         self._text_at(
             f"时间线：{TIMELINE_LABELS.get(run.state.active_timeline_rule.value, run.state.active_timeline_rule.value)}  ·  因果链：{chain_name}",
             12,
             chain_color,
-            (PANEL_X, 358),
+            (PANEL_X, 132),
         )
-        preview = run.preview
-        if preview is not None:
-            player = preview.state.entities.get("player")
-            hp = player.hp if player is not None else 0
-            self._text_at(
-                f"预演结果  核心 {hp}  ·  敌人 {sum(e.faction is Faction.ENEMY for e in preview.state.entities.values())}",
-                14,
-                COLORS["cyan"],
-                (PANEL_X, 398),
-                True,
-                "data",
-            )
+        summary = run.tactical_preview_summary
+        if summary is not None:
+            self._text_at("预演战损", 13, COLORS["cyan"], (PANEL_X, 162), True)
+            player_rect = pygame.Rect(PANEL_X, 184, 308, 30)
+            self._panel(player_rect, COLORS["surface_high"], COLORS["success"], 1, 5, COLORS["success"])
+            player_delta = summary.player_before_hp - summary.player_after_hp
+            player_result = f"HP {summary.player_before_hp} → {summary.player_after_hp}"
+            if player_delta > 0:
+                player_result += f"  (-{player_delta})"
+            self._text_at("玩家", 11, COLORS["text"], (player_rect.x + 12, player_rect.y + 8), True)
+            self._text_at(player_result, 11, COLORS["text"], (player_rect.x + 102, player_rect.y + 8), True, "data")
+            if summary.enemy_deltas:
+                for row, delta in enumerate(summary.enemy_deltas[:3]):
+                    rect = pygame.Rect(PANEL_X, 218 + row * 28, 308, 26)
+                    self._panel(rect, COLORS["surface"], COLORS["danger"], 1, 4, COLORS["danger"])
+                    self._text_at(
+                        f"E{delta.number}  {delta.display_name}", 10, COLORS["text"],
+                        (rect.x + 10, rect.y + 6), True,
+                    )
+                    self._text_at(
+                        f"HP {delta.before_hp} → {delta.after_hp}  (-{delta.damage})",
+                        10, COLORS["danger"], (rect.x + 158, rect.y + 6), True, "data",
+                    )
+            else:
+                self._text_at("前三拍未对敌人造成伤害", 10, COLORS["muted"], (PANEL_X + 10, 225))
         labels = {
             CommandType.WAIT: "空拍",
             CommandType.MOVE: "位移",
@@ -67,23 +81,29 @@ class ActionOverlayMixin:
             CommandType.PULL: "牵引",
             CommandType.SHIELD: "护盾",
         }
-        for index, rect in enumerate(TACTICAL_SLOT_RECTS):
+        self._text_at("调整前三拍后，战损即时刷新", 10, COLORS["muted"], (PANEL_X, 304))
+        for index, (action, rect) in enumerate(zip(run.tactical_actions, TACTICAL_ACTION_RECTS)):
             selected = app.selected_slot == index
+            executes = index < 3
             self._panel(
                 rect,
-                COLORS["surface_high"],
+                COLORS["surface_high"] if executes else COLORS["surface"],
                 COLORS["cyan"] if selected else COLORS["border"],
                 3 if selected else 1,
                 7,
                 COLORS["cyan"] if selected else None,
             )
-            command = run.commands[index]
+            command = action.command
             detail = DIRECTION_LABELS.get(command.direction.name, command.direction.name) if command.direction is not None else command.target_entity_id or ""
-            self._text_at(f"{index + 1}  {labels[command.command_type]}  {detail}", 15, COLORS["text"], (rect.x + 14, rect.y + 15), True)
-        self._button(TACTICAL_EXECUTE_RECT, "执行  [ENTER]", True)
-        self._button(TACTICAL_CANCEL_RECT, "返回 [Q]", False)
-        self._text_at("1/2/3 选拍 · WASD 位移 · SPACE 推击", 10, COLORS["text"], (PANEL_X, 682))
-        self._text_at("E 牵引 · F 护盾 · BACKSPACE 空拍", 10, COLORS["text"], (PANEL_X, 696))
+            badge = f"{index + 1} · 拍{index + 1}" if executes else f"{index + 1} · 候补"
+            badge_color = COLORS["cyan"] if executes else COLORS["muted"]
+            self._text_at(badge, 10, badge_color, (rect.x + 10, rect.y + 7), True)
+            self._text_at(action.display_name, 13, COLORS["text"], (rect.x + 58, rect.y + 5), True)
+            self._text_at(f"{labels[command.command_type]}  {detail}", 9, COLORS["muted"], (rect.x + 58, rect.y + 27))
+        self._button(TACTICAL_UP_RECT, "↑", False)
+        self._button(TACTICAL_DOWN_RECT, "↓", False)
+        self._button(TACTICAL_EXECUTE_RECT, "执行 [ENTER]", True)
+        self._button(TACTICAL_CANCEL_RECT, "Q 返回", False)
 
     def _reward(self, app: Any) -> None:
         run = app.run_state

@@ -98,14 +98,15 @@ class ActionTutorialMixin:
         self._text_at("实时战斗", 14, COLORS["cyan"], (PANEL_X, 68), True)
         self._text_at("核心 8/8 · 护盾 0", 19, COLORS["text"], (PANEL_X, 100), True)
         self._text_at("WASD  实时移动", 15, COLORS["text"], (PANEL_X, 176), True)
-        self._text_at("SPACE  四向攻击并击退", 14, COLORS["text"], (PANEL_X, 222))
-        self._text_at("SHIFT+WASD 闪避 · E 牵引", 13, COLORS["text"], (PANEL_X, 252))
+        self._text_at("C  近战 ↔ 远程（3格 / 半伤）", 14, COLORS["warning"], (PANEL_X, 214), True)
+        self._text_at("SPACE  朝面对方向攻击", 13, COLORS["text"], (PANEL_X, 240))
+        self._text_at("SHIFT+WASD 闪避 · E 牵引", 12, COLORS["text"], (PANEL_X, 264))
         self._text_at("敌方意图", 12, COLORS["danger"], (PANEL_X, 314), True)
         self._text_at("追猎体  →  追击", 15, COLORS["text"], (PANEL_X, 344), True)
         self._text_at("Q  战术模式", 13, COLORS["violet"], (PANEL_X, 412), True)
-        labels = ("1  位移", "2  推击", "3  空拍")
+        labels = ("拍1  正面推击", "拍2  牵引目标", "拍3  展开护盾", "候补  向前位移")
         for index, label in enumerate(labels):
-            rect = pygame.Rect(PANEL_X, 450 + index * 36, 308, 32)
+            rect = pygame.Rect(PANEL_X, 444 + index * 30, 308, 27)
             self._panel(
                 rect,
                 COLORS["surface_high"],
@@ -114,8 +115,9 @@ class ActionTutorialMixin:
                 5,
                 COLORS["cyan"] if index == 0 else None,
             )
-            self._text_at(label, 12, COLORS["text"], (rect.x + 10, rect.y + 8), True)
-        self._text_at("预演 · 核心 8 · 敌人 1", 11, COLORS["cyan"], (PANEL_X, 562), True)
+            self._text_at(label, 11, COLORS["text"], (rect.x + 10, rect.y + 6), True)
+        self._text_at("另有 3 条候补 · W/S 调整", 10, COLORS["muted"], (PANEL_X, 568), True)
+        self._text_at("预演 · 核心 8 · 敌人 1", 11, COLORS["cyan"], (PANEL_X, 590), True)
 
     def _tutorial_mock_rewards(self) -> None:
         self._panel(TUTORIAL_REWARD_RECT, COLORS["surface_high"], COLORS["border"], 1, 8, COLORS["warning"])

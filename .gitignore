@@ -30,8 +30,20 @@ desktop.ini
 build/
 dist/
 *.egg-info/
+node_modules/
 artifacts/ppt_build/
 artifacts/meowa_generation/
+artifacts/final_ppt_*/renders/
+artifacts/final_ppt_*/source-renders/
+artifacts/final_ppt_build/deck_ascii/
+artifacts/final_ppt_build/EchoZero_终验答辩_4分钟/
+artifacts/final_ppt_build/deck_ascii.pptx
+artifacts/final_ppt_scoring_edit/source_backup.pptx
+artifacts/final_ppt_yellow_edit/artifacts/
+artifacts/final_ppt_summary_edit/
+artifacts/final_ppt_outlook_edit/source_current.pptx
+artifacts/final_ppt_outlook_edit/inspect_current.mjs
+artifacts/final_ppt_outlook_edit/*-inspect.ndjson
 *.pptx.inspect.ndjson
 
 # Logs

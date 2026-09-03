@@ -694,7 +694,7 @@ class Stage03App:
                 self.audio.play_music("final")
             self.ui.feedback = "新遭遇已接入；生命与协议保留，敌人状态已重置。"
         else:
-            self.ui.feedback = "回合已结算；敌人重新定位并公开下一轮意图。"
+            self.ui.feedback = "回合已结算；有效三拍已保留，失效目标已改为追击建议。"
         self._causality_rewrite = meaningful_rewrite(
             self._causality_baseline,
             resolution.result.state,

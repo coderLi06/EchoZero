@@ -84,6 +84,45 @@ def test_echo_choice_changes_second_encounter_and_advances_to_climax() -> None:
     assert set(run.encounter.state.entities) == {"player", "charger_prime", "sniper_prime"}
 
 
+def test_climax_second_turn_keeps_actions_after_first_enemy_is_defeated() -> None:
+    level, plugins = load_level_one()
+    run = LevelRun(level, plugins)
+    _win_first_encounter(run)
+    run.choose_reward("echo_protocol")
+    _set(
+        run,
+        [
+            Command("player", CommandType.PUSH, 1, Direction.RIGHT),
+            Command("player", CommandType.MOVE, 2, Direction.RIGHT),
+            Command("player", CommandType.WAIT, 3),
+        ],
+    )
+    run.confirm_turn()
+    run.choose_reward(run.reward_choices[0].plugin_id)
+    _set(
+        run,
+        [
+            Command("player", CommandType.PULL, 1, target_entity_id="charger_prime"),
+            Command("player", CommandType.PUSH, 2, Direction.RIGHT),
+            Command("player", CommandType.MOVE, 3, Direction.DOWN),
+        ],
+    )
+
+    resolution = run.confirm_turn()
+
+    assert resolution.outcome.value == "ongoing"
+    assert set(run.encounter.state.entities) == {"player", "sniper_prime"}
+    assert all(
+        command.target_entity_id != "charger_prime"
+        for command in run.encounter.commands
+    )
+    assert all(
+        command.command_type is not CommandType.WAIT
+        for command in run.encounter.commands
+    )
+    assert run.encounter.preview().state.turn == run.encounter.state.turn + 1
+
+
 def test_restart_clears_progress_build_and_restores_health() -> None:
     level, plugins = load_level_one()
     run = LevelRun(level, plugins)

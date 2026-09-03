@@ -31,6 +31,7 @@ class PreparedAction:
     target_pos: GridPos
     damage: int = 0
     label: str = ""
+    target_positions: tuple[GridPos, ...] = ()
 
 
 @dataclass
@@ -178,7 +179,7 @@ def _at_ranged_distance(context: BehaviorContext) -> bool:
 
 
 def _attack(context: BehaviorContext) -> PreparedAction:
-    damage = 2 if context.actor.enemy_kind in {"ranged", "warden"} else 1
+    damage = 3 if context.actor.enemy_kind == "warden" else 2 if context.actor.enemy_kind == "ranged" else 1
     return PreparedAction(
         context.actor.entity_id,
         PreparedActionKind.ATTACK,
@@ -189,12 +190,28 @@ def _attack(context: BehaviorContext) -> PreparedAction:
 
 
 def _special(context: BehaviorContext) -> PreparedAction:
+    if context.actor.enemy_kind == "warden":
+        targets = [context.player.pos]
+        targets.extend(
+            target
+            for direction in Direction
+            if context.state.in_bounds(target := context.player.pos.moved(direction))
+            and target not in context.state.walls
+        )
+        return PreparedAction(
+            context.actor.entity_id,
+            PreparedActionKind.SPECIAL,
+            context.player.pos,
+            4,
+            "PHASE CROSS",
+            tuple(targets),
+        )
     return PreparedAction(
         context.actor.entity_id,
         PreparedActionKind.SPECIAL,
         context.player.pos,
         2,
-        "CHARGE" if context.actor.enemy_kind == "charger" else "PHASE BURST",
+        "CHARGE",
     )
 
 

@@ -40,7 +40,10 @@ from .behavior_tree import (
     build_enemy_tree,
     plan_enemy_action,
 )
-from .action_run import ActionReward, ActionRun, ActionRunPhase, RewardKind
+from .action_run import (
+    ActionReward, ActionRun, ActionRunPhase, AttackMode, RewardKind, TacticalAction,
+    TacticalEnemyDelta, TacticalPreviewSummary,
+)
 
 __all__ = [
     "Command", "CommandType", "CombatState", "Direction", "EnemyIntent",
@@ -54,5 +57,6 @@ __all__ = [
     "Action", "BehaviorContext", "BehaviorNode", "BehaviorStatus", "Condition",
     "PreparedAction", "PreparedActionKind", "Selector", "Sequence",
     "build_enemy_tree", "plan_enemy_action",
-    "ActionReward", "ActionRun", "ActionRunPhase", "RewardKind",
+    "ActionReward", "ActionRun", "ActionRunPhase", "AttackMode", "RewardKind", "TacticalAction",
+    "TacticalEnemyDelta", "TacticalPreviewSummary",
 ]

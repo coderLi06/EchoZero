@@ -4,7 +4,7 @@ import random
 import pygame
 
 from src.domain import CommandType, LevelPhase
-from src.presentation.stage03_renderer import CELL_SIZE, GRID_ORIGIN
+from src.presentation.stage03_renderer import CELL_SIZE, GRID_ORIGIN, SLOT_RECTS
 from src.stage03_app import AppScene, Stage03App
 
 
@@ -68,8 +68,10 @@ def test_formal_keyboard_and_mouse_controls_can_clear_level_one() -> None:
         app._choose_slot(index)
     app._handle_key(pygame.K_RETURN)
 
-    for key in (pygame.K_1, pygame.K_d, pygame.K_2, pygame.K_d, pygame.K_RETURN):
+    for key in (pygame.K_1, pygame.K_d, pygame.K_2, pygame.K_d):
         app._handle_key(key)
+    app._handle_click(SLOT_RECTS[2].center, 3)
+    app._handle_key(pygame.K_RETURN)
     for key in (
         pygame.K_1,
         pygame.K_w,

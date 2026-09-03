@@ -142,7 +142,8 @@ class ActionWorldMixin:
                 rect = self.cell_rect(entity.pos).inflate(-12, -12)
                 ghost_color = COLORS["cyan"] if entity.faction is Faction.PLAYER else COLORS["danger"]
                 pygame.draw.rect(self.screen, ghost_color, rect, 2, border_radius=4)
-                self._center("P" if entity.faction is Faction.PLAYER else "E", 11, ghost_color, rect.center, True, "data")
+                ghost_label = "P" if entity.faction is Faction.PLAYER else f"E{run.enemy_number(entity.entity_id)}"
+                self._center(ghost_label, 10, ghost_color, rect.center, True, "data")
                 source = run.state.entities.get(entity.entity_id)
                 if source is not None and source.pos != entity.pos:
                     self._arrow(self.cell_rect(source.pos).center, rect.center, ghost_color, 1)
@@ -153,18 +154,21 @@ class ActionWorldMixin:
                 start = self.cell_rect(enemy.pos).center
                 end = self.cell_rect(prepared.target_pos).center
                 pygame.draw.line(self.screen, (255, 174, 180), start, end, 3)
-                pygame.draw.circle(self.screen, COLORS["danger"], end, 11, 3)
-                pygame.draw.circle(self.screen, COLORS["text"], end, 3)
+                targets = prepared.target_positions or (prepared.target_pos,)
+                for target in targets:
+                    target_center = self.cell_rect(target).center
+                    pygame.draw.circle(self.screen, COLORS["danger"], target_center, 17 if len(targets) > 1 else 11, 3)
+                    pygame.draw.circle(self.screen, COLORS["text"], target_center, 3)
         for entity in run.state.entities.values():
             self._entity(app, entity)
-        for index, enemy in enumerate(run.active_enemies[:4], start=1):
+        for enemy in run.active_enemies:
             if enemy.entity_id not in run.state.entities:
                 continue
             rect = self.cell_rect(enemy.pos)
             badge_center = (rect.left + 12, rect.top + 12)
             pygame.draw.circle(self.screen, COLORS["background"], badge_center, 11)
             pygame.draw.circle(self.screen, COLORS["danger"], badge_center, 11, 2)
-            self._center(f"E{index}", 9, COLORS["text"], badge_center, True, "data")
+            self._center(f"E{run.enemy_number(enemy.entity_id)}", 9, COLORS["text"], badge_center, True, "data")
         if app.dodge_trail is not None and app.dodge_trail[2] > now:
             start = self.cell_rect(app.dodge_trail[0]).center
             end = self.cell_rect(app.dodge_trail[1]).center
@@ -185,9 +189,29 @@ class ActionWorldMixin:
                 pygame.draw.circle(self.screen, COLORS["text"], center, 19, 3)
                 pygame.draw.line(self.screen, COLORS["warning"], (center[0] - 20, center[1]), (center[0] + 20, center[1]), 2)
                 pygame.draw.line(self.screen, COLORS["warning"], (center[0], center[1] - 20), (center[0], center[1] + 20), 2)
+        for origin, destination, until in app.shot_trails:
+            if until > now:
+                start = self.cell_rect(origin).center
+                end = self.cell_rect(destination).center
+                pygame.draw.line(self.screen, COLORS["warning"], start, end, 5)
+                pygame.draw.line(self.screen, COLORS["text"], start, end, 1)
+                pygame.draw.circle(self.screen, COLORS["warning"], end, 6, 2)
         for position, until in app.death_fragments:
             if until > now:
                 self._death_dissolve(position, until, now)
+        warden = next((enemy for enemy in run.active_enemies if enemy.enemy_kind == "warden"), None)
+        if warden is not None:
+            bar = pygame.Rect(184, 714, 560, 16)
+            self._panel(bar.inflate(10, 18), COLORS["surface"], COLORS["border"], 2, 6, COLORS["danger"])
+            pygame.draw.rect(self.screen, (38, 29, 22), bar)
+            fill = bar.copy()
+            fill.width = round(bar.width * warden.hp / warden.max_hp)
+            pygame.draw.rect(self.screen, COLORS["danger"], fill)
+            phase_text = "过载加速" if warden.hp <= warden.max_hp // 2 else "十字爆发"
+            self._center(
+                f"相位守卫  {warden.hp}/{warden.max_hp}  ·  {phase_text}",
+                12, COLORS["text"], bar.center, True, "data",
+            )
 
     def _entity(self, app: Any, entity: Any) -> None:
         rect = self.cell_rect(entity.pos).inflate(-6, -6)
@@ -323,23 +347,29 @@ class ActionWorldMixin:
         self._meter("闪避", run.dodge_cooldown, run.dodge_cooldown_base, (PANEL_X, 140))
         self._meter("牵引技能", run.skill_cooldown, 2.2, (PANEL_X, 170))
         self._meter("战术模式 [Q]", run.tactical_cooldown, run.TACTICAL_COOLDOWN, (PANEL_X, 200))
-        self._text_at("WASD / 方向键 移动  ·  SPACE 四向攻击", 12, COLORS["text"], (PANEL_X, 236))
-        self._text_at("SHIFT+方向键 闪避  ·  E 牵引  ·  Q 战术", 11, COLORS["muted"], (PANEL_X, 258))
-        pygame.draw.line(self.screen, COLORS["border"], (PANEL_X, 286), (PANEL_X + 290, 286), 1)
-        self._text_at("敌方意图", 13, COLORS["danger"], (PANEL_X, 304), True)
-        self._text_at("ENEMY INTENT", 9, COLORS["muted"], (PANEL_X + 190, 309), True, "data")
-        y = 332
-        for index, enemy in enumerate(run.active_enemies[:4], start=1):
+        mode_ranged = run.attack_mode.value == "ranged"
+        mode_color = COLORS["warning"] if mode_ranged else COLORS["success"]
+        mode_label = "远程 · 3格 · 半伤" if mode_ranged else "近战 · 1格 · 全伤"
+        mode_rect = pygame.Rect(PANEL_X, 228, 290, 30)
+        self._panel(mode_rect, COLORS["surface_high"], mode_color, 2, 5, mode_color)
+        self._text_at(f"C  攻击模式：{mode_label}", 12, COLORS["text"], (PANEL_X + 14, 236), True)
+        self._text_at("SPACE 攻击  ·  SHIFT+方向键 闪避", 11, COLORS["muted"], (PANEL_X, 266))
+        self._text_at("E 牵引  ·  Q 战术模式", 11, COLORS["muted"], (PANEL_X, 284))
+        pygame.draw.line(self.screen, COLORS["border"], (PANEL_X, 310), (PANEL_X + 290, 310), 1)
+        self._text_at("敌方意图", 13, COLORS["danger"], (PANEL_X, 320), True)
+        self._text_at("ENEMY INTENT", 9, COLORS["muted"], (PANEL_X + 190, 325), True, "data")
+        y = 346
+        for enemy in run.active_enemies[:4]:
             action = run.prepared_actions.get(enemy.entity_id)
             label = self._intent_label(action.label if action is not None else "")
             timer = max(0.0, run.enemy_timers.get(enemy.entity_id, 0.0))
             self._panel(pygame.Rect(PANEL_X, y, 290, 26), (39, 48, 64), COLORS["border"], 1, 4, COLORS["danger"])
             self._text_at(f"{timer:0.1f}s", 11, COLORS["danger"], (PANEL_X + 8, y + 6), True, "data")
-            self._text_at(f"E{index}  {enemy.display_name}  →  {label}", 12, COLORS["text"], (PANEL_X + 56, y + 5), True)
+            self._text_at(f"E{run.enemy_number(enemy.entity_id)}  {enemy.display_name}  →  {label}", 12, COLORS["text"], (PANEL_X + 56, y + 5), True)
             y += 31
-        pygame.draw.line(self.screen, COLORS["border"], (PANEL_X, 468), (PANEL_X + 290, 468), 1)
-        self._text_at("本局构筑", 13, COLORS["violet"], (PANEL_X, 486), True)
-        self._text_at("BUILD", 9, COLORS["muted"], (PANEL_X + 244, 491), True, "data")
-        self._build_panel(run, pygame.Rect(PANEL_X, 516, 290, 142))
+        pygame.draw.line(self.screen, COLORS["border"], (PANEL_X, 486), (PANEL_X + 290, 486), 1)
+        self._text_at("本局构筑", 13, COLORS["violet"], (PANEL_X, 498), True)
+        self._text_at("BUILD", 9, COLORS["muted"], (PANEL_X + 244, 503), True, "data")
+        self._build_panel(run, pygame.Rect(PANEL_X, 528, 290, 130))
         if run.phase is ActionRunPhase.ACTION:
             self._button(ACTION_TUTORIAL_REPLAY_RECT, "重新进入教学", False)

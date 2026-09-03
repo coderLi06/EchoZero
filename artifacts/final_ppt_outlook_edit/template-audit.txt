@@ -1,0 +1,5 @@
+Source: current user-edited 9-slide EchoZero final defense deck.
+Visual system: 1280x720 dark steel background, brass/yellow accents, Microsoft YaHei, 48px titles, thin horizontal rule, bottom-right page marker.
+Reusable patterns: source slide 8 provides three horizontal challenge/decision rows; source slide 9 provides a thesis line, three large columns, and a bottom priority strip.
+Insertion contract: preserve slides 1-9 exactly; duplicate slide 8 for challenges and slide 9 for summary/outlook; rewrite only inherited text elements and speaker notes.
+No new external media or theme changes.

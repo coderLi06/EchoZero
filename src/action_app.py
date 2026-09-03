@@ -33,9 +33,11 @@ from src.presentation.action_renderer import (
     NEW_RUN_RECT,
     REWARD_RECTS,
     SHOWCASE_RECT,
+    TACTICAL_ACTION_RECTS,
     TACTICAL_CANCEL_RECT,
+    TACTICAL_DOWN_RECT,
     TACTICAL_EXECUTE_RECT,
-    TACTICAL_SLOT_RECTS,
+    TACTICAL_UP_RECT,
     WINDOW_SIZE,
     ActionRenderer,
 )
@@ -127,6 +129,7 @@ class ActionApp:
         self.input_notice_until = 0
         self.flash_until: dict[str, int] = {}
         self.hit_marks: list[tuple[GridPos, int]] = []
+        self.shot_trails: list[tuple[GridPos, GridPos, int]] = []
         self.dodge_trail: tuple[GridPos, GridPos, int] | None = None
         self.move_trails: list[tuple[GridPos, GridPos, int]] = []
         self.death_fragments: list[tuple[GridPos, int]] = []
@@ -177,6 +180,7 @@ class ActionApp:
         self.player_pose_until_ms = 0
         self.reward_acquisition = None
         self.reward_acquired_until = 0
+        self.shot_trails.clear()
         self._held_movement_inputs.clear()
         self.audio.play_music("battle")
 
@@ -348,6 +352,16 @@ class ActionApp:
             if run.enter_tactical():
                 self.selected_slot = 0
                 self.audio.play("inverse")
+        elif key == pygame.K_c:
+            mode = run.toggle_attack_mode()
+            self._consume(run.last_events)
+            self.input_notice = (
+                "远程模式 · 3 格 / 半伤"
+                if mode.value == "ranged"
+                else "近战模式 · 1 格 / 全伤"
+            )
+            self.input_notice_until = pygame.time.get_ticks() + 900
+            self.audio.play("slot")
         elif key in (pygame.K_SPACE, pygame.K_j):
             self._consume(run.attack())
         elif key == pygame.K_e:
@@ -371,40 +385,15 @@ class ActionApp:
         if key == pygame.K_q:
             run.cancel_tactical()
             self.audio.play("cancel")
-        elif key in (pygame.K_1, pygame.K_2, pygame.K_3):
+        elif pygame.K_1 <= key <= pygame.K_7:
             self.selected_slot = key - pygame.K_1
             self.audio.play("slot")
-        elif movement_direction is not None or key in MOVEMENT_KEYS:
-            direction = movement_direction or self._direction_for_key(key)
-            run.facing = direction
-            run.set_tactical_command(
-                self.selected_slot + 1,
-                Command("player", CommandType.MOVE, self.selected_slot + 1, direction),
-            )
-        elif key in (pygame.K_SPACE, pygame.K_j):
-            run.set_tactical_command(
-                self.selected_slot + 1,
-                Command("player", CommandType.PUSH, self.selected_slot + 1, run.facing),
-            )
-        elif key == pygame.K_e:
-            target = self._nearest_aligned_enemy(run.facing)
-            run.set_tactical_command(
-                self.selected_slot + 1,
-                Command(
-                    "player", CommandType.PULL, self.selected_slot + 1,
-                    target_entity_id=target,
-                ),
-            )
-        elif key == pygame.K_f:
-            run.set_tactical_command(
-                self.selected_slot + 1,
-                Command("player", CommandType.SHIELD, self.selected_slot + 1),
-            )
-        elif key in (pygame.K_BACKSPACE, pygame.K_DELETE):
-            run.set_tactical_command(
-                self.selected_slot + 1,
-                Command("player", CommandType.WAIT, self.selected_slot + 1),
-            )
+        elif key in (pygame.K_w, pygame.K_UP):
+            self.selected_slot = run.move_tactical_action(self.selected_slot, -1)
+            self.audio.play("slot")
+        elif key in (pygame.K_s, pygame.K_DOWN):
+            self.selected_slot = run.move_tactical_action(self.selected_slot, 1)
+            self.audio.play("slot")
         elif key == pygame.K_RETURN:
             result = run.execute_tactical()
             if result is not None:
@@ -465,10 +454,16 @@ class ActionApp:
                     return
             return
         if run.phase is ActionRunPhase.TACTICAL:
-            for index, rect in enumerate(TACTICAL_SLOT_RECTS):
+            for index, rect in enumerate(TACTICAL_ACTION_RECTS):
                 if rect.collidepoint(logical):
                     self.selected_slot = index
                     return
+            if TACTICAL_UP_RECT.collidepoint(logical):
+                self.selected_slot = run.move_tactical_action(self.selected_slot, -1)
+                return
+            if TACTICAL_DOWN_RECT.collidepoint(logical):
+                self.selected_slot = run.move_tactical_action(self.selected_slot, 1)
+                return
             if TACTICAL_EXECUTE_RECT.collidepoint(logical):
                 result = run.execute_tactical()
                 if result is not None:
@@ -601,6 +596,15 @@ class ActionApp:
         pose = ""
         pose_priority = -1
         for event in events:
+            if (
+                event.actor_id == "player"
+                and event.from_pos is not None
+                and event.to_pos is not None
+                and (event.kind == "ranged_fired" or event.detail == "ranged_attack")
+            ):
+                self.shot_trails.append(
+                    (event.from_pos, event.to_pos, now + (90 if self.reduced_motion else 220))
+                )
             if event.kind in {"damaged", "shield_absorbed"} and event.target_id:
                 self.flash_until[event.target_id] = now + flash_ms
             if event.kind == "damaged" and event.to_pos is not None:
@@ -647,7 +651,10 @@ class ActionApp:
                 candidate, priority = "skill", 4
             elif (
                 event.actor_id == "player"
-                and (event.kind == "attack_missed" or event.detail in {"basic_attack", "collision"})
+                and (
+                    event.kind in {"attack_missed", "ranged_fired"}
+                    or event.detail in {"basic_attack", "ranged_attack", "collision"}
+                )
             ):
                 candidate, priority = "attack", 3
             elif event.kind == "damaged" and event.target_id == "player":
@@ -662,6 +669,7 @@ class ActionApp:
             (position, until) for position, until in self.hit_marks if until > now
         ]
         self.move_trails = [trail for trail in self.move_trails if trail[2] > now]
+        self.shot_trails = [trail for trail in self.shot_trails if trail[2] > now]
         self.death_fragments = [
             fragment for fragment in self.death_fragments if fragment[1] > now
         ]
